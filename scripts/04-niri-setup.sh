@@ -106,14 +106,14 @@ echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 
 # ------------------------------------------------------------------------------
-# 4. Install Dependencies (Split Strategy + Retry)
+# 4. Install Dependencies (Split Strategy + Retry + Failure Report)
 # ------------------------------------------------------------------------------
 log "Step 4/9: Installing dependencies from niri-applist.txt..."
 
 LIST_FILE="$PARENT_DIR/niri-applist.txt"
+FAILED_PACKAGES=() # Initialize failure array
 
 if [ -f "$LIST_FILE" ]; then
-    # tr -d '\r' Fixes Windows line endings
     mapfile -t PACKAGE_ARRAY < <(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | tr -d '\r')
     
     if [ ${#PACKAGE_ARRAY[@]} -gt 0 ]; then
@@ -146,7 +146,8 @@ if [ -f "$LIST_FILE" ]; then
                         if runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
                              success "Installed '$pkg' on second attempt."
                         else
-                             error "Failed to install '$pkg' after 2 attempts. Skipping."
+                             error "Failed to install '$pkg' after 2 attempts."
+                             FAILED_PACKAGES+=("$pkg") # Record failure
                         fi
                     fi
                 done
@@ -166,11 +167,35 @@ if [ -f "$LIST_FILE" ]; then
                         success "Installed: $git_pkg (on retry)"
                     else
                         error "Failed to install: $git_pkg after 2 attempts."
+                        FAILED_PACKAGES+=("$git_pkg") # Record failure
                     fi
                 fi
             done
         fi
-        success "Dependency installation phase completed."
+        
+        # --- Report Generation Logic ---
+        if [ ${#FAILED_PACKAGES[@]} -gt 0 ]; then
+            DOCS_DIR="$HOME_DIR/Documents"
+            REPORT_FILE="$DOCS_DIR/安装失败的软件.txt"
+            
+            # Ensure Documents directory exists
+            if [ ! -d "$DOCS_DIR" ]; then
+                runuser -u "$TARGET_USER" -- mkdir -p "$DOCS_DIR"
+            fi
+            
+            log "Generating failure report..."
+            # Print array to file
+            printf "%s\n" "${FAILED_PACKAGES[@]}" > "$REPORT_FILE"
+            # Give ownership to user
+            chown "$TARGET_USER:$TARGET_USER" "$REPORT_FILE"
+            
+            echo -e "${RED}[ATTENTION] The following packages failed to install:${NC}"
+            printf " - %s\n" "${FAILED_PACKAGES[@]}"
+            echo -e "${YELLOW}A list has been saved to: $REPORT_FILE${NC}"
+        else
+            success "All dependencies installed successfully!"
+        fi
+
     else
         warn "niri-applist.txt is empty."
     fi
@@ -196,7 +221,6 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
     runuser -u "$TARGET_USER" -- tar -czf "$HOME_DIR/$BACKUP_NAME" -C "$HOME_DIR" .config
     
     log "-> Applying new dotfiles..."
-    # Copy as user to avoid permission issues
     runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
     success "Dotfiles applied."
 else
@@ -276,7 +300,6 @@ EOT
     ln -sf "../niri-autostart.service" "$WANTS_DIR/niri-autostart.service"
 
     # 9.4 Permission Fix (Surgical)
-    # Only fix the specific directory we messed with as root
     chown -R "$TARGET_USER:$TARGET_USER" "$HOME_DIR/.config/systemd"
     
     success "TTY Auto-login configured."
