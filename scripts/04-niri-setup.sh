@@ -3,6 +3,13 @@
 # ==============================================================================
 # 04-niri-setup.sh - Niri Desktop, Dotfiles & User Configuration
 # ==============================================================================
+# Features:
+# - Auto User Detection
+# - Robust Dependency Installation (Batch -> Split -> Retry)
+# - Multi-level Fallback (AUR -> Local Bin -> Swaybg)
+# - Dotfiles Backup & Restore (With Clone Retry)
+# - TTY Auto-login Configuration
+# ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -67,7 +74,7 @@ pacman -S --noconfirm --needed niri xwayland-satellite xdg-desktop-portal-gnome 
 success "Niri core packages installed."
 
 # ------------------------------------------------------------------------------
-# 1.5 Install Pre-compiled awww (Local Binary First)
+# 1.5 Install Pre-compiled awww (Local Binary Check)
 # ------------------------------------------------------------------------------
 log "Step 1.5/9: Checking for local awww binaries..."
 
@@ -112,7 +119,7 @@ fi
 log "Step 3/9: Configuring Software Center..."
 pacman -S --noconfirm --needed flatpak gnome-software > /dev/null 2>&1
 
-# 1. Add Flathub repo first (standard URL needed to initialize)
+# 1. Add Flathub repo first
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
 # 2. Modify to USTC Mirror (User Requested)
@@ -146,7 +153,6 @@ if [ -f "$LIST_FILE" ]; then
 
         for pkg in "${PACKAGE_ARRAY[@]}"; do
             if [ "$pkg" == "imagemagic" ]; then pkg="imagemagick"; fi
-            # Skip manual installs logic
             if [[ "$pkg" == "awww-git" || "$pkg" == "awww" ]]; then continue; fi
             
             if [[ "$pkg" == *"-git" ]]; then
@@ -202,7 +208,7 @@ if [ -f "$LIST_FILE" ]; then
             pacman -S --noconfirm --needed waybar > /dev/null 2>&1 && success "Waybar recovered."
         fi
 
-        # Awww Recovery (Local Binary Fallback)
+        # Awww Recovery
         if ! command -v awww &> /dev/null; then
             if [ -f "$LOCAL_BIN_AWWW" ] && [ -f "$LOCAL_BIN_DAEMON" ]; then
                 log "-> Installing awww from local binaries (Fallback)..."
@@ -233,7 +239,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Clone Dotfiles
+# 5. Clone Dotfiles (With Retry)
 # ------------------------------------------------------------------------------
 log "Step 5/9: Cloning and applying dotfiles..."
 
@@ -242,7 +248,13 @@ TEMP_DIR="/tmp/shorin-repo"
 rm -rf "$TEMP_DIR"
 
 log "-> Cloning repository..."
-runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"
+# --- First Attempt ---
+if ! runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
+    warn "Git clone failed. Retrying (Attempt 2/2) in 3 seconds..."
+    sleep 3
+    # --- Second Attempt ---
+    runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"
+fi
 
 if [ -d "$TEMP_DIR/dotfiles" ]; then
     BACKUP_NAME="config_backup_$(date +%s).tar.gz"
@@ -264,7 +276,7 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
         fi
     fi
 else
-    error "Directory 'dotfiles' not found in cloned repo."
+    error "Failed to clone repository or 'dotfiles' directory missing."
 fi
 
 # ------------------------------------------------------------------------------
