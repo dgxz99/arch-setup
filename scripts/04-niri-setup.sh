@@ -3,20 +3,12 @@
 # ==============================================================================
 # 04-niri-setup.sh - Niri Desktop, Dotfiles & User Configuration
 # ==============================================================================
-# Features:
-# - Smart China Optimization (Timezone detected OR DEBUG=1)
-# - Intelligent Git Mirror Fallback (Mirror -> Direct) for both AUR & Dotfiles
-# - Robust Dependency Installation (Batch -> Split -> Retry)
-# - Multi-level Fallback (Local Bin -> Swaybg)
-# ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/00-utils.sh"
 
 # --- Debug Configuration ---
-# Set this to "1" to FORCE China network optimizations regardless of timezone.
-# Usage: sudo DEBUG=1 ./install.sh
 DEBUG=${DEBUG:-0}
 
 check_root
@@ -71,38 +63,38 @@ if [ "$SKIP_AUTOLOGIN" = false ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 1. Install Niri & Essentials
+# 1. Install Niri & Essentials (+ Firefox Policy)
 # ------------------------------------------------------------------------------
-log "Step 1/9: Installing Niri and core components..."
-pacman -S --noconfirm --needed niri xwayland-satellite xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome > /dev/null 2>&1
+log "Step 1/9: Installing Niri, core components and pciutils..."
+# Added pciutils for GPU detection later
+pacman -S --noconfirm --needed niri xwayland-satellite xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome pciutils > /dev/null 2>&1
 success "Niri core packages installed."
 
-# ------------------------------------------------------------------------------
-# 1.5 Install Pre-compiled awww (Local Binary Check)
-# ------------------------------------------------------------------------------
-log "Step 1.5/9: Checking for local awww binaries..."
+# --- [NEW] Firefox Extension Auto-Install (Pywalfox) ---
+log "-> Configuring Firefox Enterprise Policies (Pywalfox)..."
+FIREFOX_POLICY_DIR="/etc/firefox/policies"
+mkdir -p "$FIREFOX_POLICY_DIR"
+cat <<EOT > "$FIREFOX_POLICY_DIR/policies.json"
+{
+  "policies": {
+    "Extensions": {
+      "InstallOrUpdate": [
+        "https://addons.mozilla.org/firefox/downloads/latest/pywalfox/latest.xpi"
+      ]
+    }
+  }
+}
+EOT
+success "Firefox policy created."
 
-LOCAL_BIN_AWWW="$PARENT_DIR/bin/awww"
-LOCAL_BIN_DAEMON="$PARENT_DIR/bin/awww-daemon"
-
-if [ -f "$LOCAL_BIN_AWWW" ] && [ -f "$LOCAL_BIN_DAEMON" ]; then
-    log "-> Found local awww binaries. Installing to /usr/local/bin/..."
-    cp "$LOCAL_BIN_AWWW" /usr/local/bin/awww
-    cp "$LOCAL_BIN_DAEMON" /usr/local/bin/awww-daemon
-    chmod +x /usr/local/bin/awww /usr/local/bin/awww-daemon
-    success "awww & awww-daemon installed (Local Binary)."
-else
-    warn "Local awww binaries not found. Will rely on AUR/Fallback."
-fi
-
 # ------------------------------------------------------------------------------
-# 2. File Manager (Nautilus) Setup
+# 2. File Manager (Nautilus) Setup (Smart GPU Env)
 # ------------------------------------------------------------------------------
 log "Step 2/9: Configuring Nautilus and Terminal..."
 
 pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus > /dev/null 2>&1
 
-# Symlink Kitty to Gnome-Terminal (Safe Mode)
+# Symlink Kitty
 if [ -f /usr/bin/gnome-terminal ] && [ ! -L /usr/bin/gnome-terminal ]; then
     warn "/usr/bin/gnome-terminal is a real file. Skipping symlink."
 else
@@ -110,56 +102,66 @@ else
     ln -sf /usr/bin/kitty /usr/bin/gnome-terminal
 fi
 
-# Patch Nautilus
+# Patch Nautilus (.desktop)
 DESKTOP_FILE="/usr/share/applications/org.gnome.Nautilus.desktop"
 if [ -f "$DESKTOP_FILE" ]; then
-    log "-> Patching Nautilus .desktop file..."
-    sed -i 's/^Exec=/Exec=env GSK_RENDERER=gl GTK_IM_MODULE=fcitx /' "$DESKTOP_FILE"
+    log "-> Detecting GPU configuration for Nautilus environment variables..."
+    
+    # Default vars
+    ENV_VARS="env GTK_IM_MODULE=fcitx"
+    
+    # Check for Dual GPU + Nvidia
+    # 1. Count VGA/3D controllers
+    GPU_COUNT=$(lspci | grep -E -i "vga|3d" | wc -l)
+    # 2. Check for Nvidia
+    HAS_NVIDIA=$(lspci | grep -E -i "nvidia" | wc -l)
+    
+    if [ "$GPU_COUNT" -gt 1 ] && [ "$HAS_NVIDIA" -gt 0 ]; then
+        log "-> Dual GPU with Nvidia detected ($GPU_COUNT GPUs). Enabling GSK_RENDERER=gl..."
+        ENV_VARS="env GSK_RENDERER=gl GTK_IM_MODULE=fcitx"
+    else
+        log "-> Single GPU or non-Nvidia setup. Using standard GTK vars..."
+    fi
+    
+    log "-> Patching Nautilus .desktop with: $ENV_VARS"
+    sed -i "s/^Exec=/Exec=$ENV_VARS /" "$DESKTOP_FILE"
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Smart Network Optimization (Timezone Based + Debug Mode)
+# 3. Smart Network Optimization
 # ------------------------------------------------------------------------------
 log "Step 3/9: Configuring Network Sources..."
 
-# 1. Add Flathub repo first
 pacman -S --noconfirm --needed flatpak gnome-software > /dev/null 2>&1
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-# 2. Smart Mirror Configuration
 log "-> Checking System Timezone..."
 CURRENT_TZ=$(readlink -f /etc/localtime)
 IS_CN_ENV=false
 
-# --- DEBUG MODE OVERRIDE ---
+# Debug Override
 if [ "$DEBUG" == "1" ]; then
-    warn "DEBUG MODE ACTIVE: Forcing China network optimizations regardless of timezone."
-    # Simulate Shanghai timezone condition
+    warn "DEBUG MODE ACTIVE: Forcing China network optimizations."
     CURRENT_TZ="Asia/Shanghai (Simulated)"
 fi
-# ---------------------------
 
 if [[ "$CURRENT_TZ" == *"Shanghai"* ]]; then
     IS_CN_ENV=true
     log "-> Detected Timezone: ${H_GREEN}Asia/Shanghai${NC}"
-    log "-> Applying China optimizations (USTC Flatpak, Git Mirror, GOPROXY)..."
+    log "-> Applying China optimizations..."
     
-    # Flatpak Mirror
     flatpak remote-modify flathub --url=https://mirrors.ustc.edu.cn/flathub
     
-    # GOPROXY
     export GOPROXY=https://goproxy.cn,direct
     if ! grep -q "GOPROXY" /etc/environment; then
         echo "GOPROXY=https://goproxy.cn,direct" >> /etc/environment
     fi
     
-    # Git Mirror (Enable gitclone.com)
     log "-> Enabling GitHub Mirror (gitclone.com)..."
     runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
     
     success "Optimizations Enabled."
 else
-    log "-> Detected Timezone: ${H_YELLOW}$CURRENT_TZ${NC} (Not Shanghai)"
     log "-> Using official sources."
 fi
 
@@ -172,7 +174,7 @@ echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 
 # ------------------------------------------------------------------------------
-# 4. Install Dependencies (Smart Retry with Mirror Toggle)
+# 4. Install Dependencies
 # ------------------------------------------------------------------------------
 log "Step 4/9: Installing dependencies from niri-applist.txt..."
 
@@ -189,6 +191,7 @@ if [ -f "$LIST_FILE" ]; then
         for pkg in "${PACKAGE_ARRAY[@]}"; do
             if [ "$pkg" == "imagemagic" ]; then pkg="imagemagick"; fi
             
+            # [Logic] We DO NOT skip awww-git here. We try to compile it first.
             if [[ "$pkg" == *"-git" ]]; then
                 GIT_LIST+=("$pkg")
             else
@@ -199,13 +202,10 @@ if [ -f "$LIST_FILE" ]; then
         # --- Phase 1: Batch Install ---
         if [ -n "$BATCH_LIST" ]; then
             log "-> [Batch] Installing standard repository packages..."
-            # Attempt 1 (With Mirror if enabled)
             if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-                # If failed AND we are in CN env (or Debug), try disabling mirror
                 if [ "$IS_CN_ENV" = true ]; then
-                    warn "Batch install failed. Disabling Git Mirror and Retrying (Direct Connect)..."
+                    warn "Batch install failed. Retrying Direct Connect..."
                     runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
-                    
                     if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
                         warn "Direct batch failed too. Moving to Split mode..."
                     else
@@ -219,31 +219,20 @@ if [ -f "$LIST_FILE" ]; then
             fi
         fi
 
-        # --- Phase 2: Git Install (One-by-One with Smart Retry) ---
+        # --- Phase 2: Git Install ---
         if [ ${#GIT_LIST[@]} -gt 0 ]; then
             log "-> [Slow] Installing '-git' packages..."
             for git_pkg in "${GIT_LIST[@]}"; do
                 log "-> Installing: $git_pkg ..."
-                
-                # Logic: 
-                # 1. Try with current settings (Mirror might be on or off from Phase 1)
-                # 2. If fail -> Toggle Mirror setting -> Retry
-                
                 if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
                     warn "Install failed for '$git_pkg'. Toggling Git Mirror setting and Retrying..."
                     
-                    # Check current state by seeing if the key exists
                     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
-                        # Mirror is ON -> Turn it OFF
-                        log "-> Switching to DIRECT connection..."
                         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                     else
-                        # Mirror is OFF -> Turn it ON (Maybe direct is blocked?)
-                        log "-> Switching to MIRROR connection..."
                         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
                     fi
                     
-                    # Retry
                     if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
                         error "Failed: $git_pkg"
                         FAILED_PACKAGES+=("$git_pkg")
@@ -266,20 +255,30 @@ if [ -f "$LIST_FILE" ]; then
             pacman -S --noconfirm --needed waybar > /dev/null 2>&1 && success "Waybar recovered."
         fi
 
-        # Awww Recovery (Local Binary Fallback)
+        # Awww Recovery (Local Binary Fallback -> User Space)
         if ! command -v awww &> /dev/null; then
             warn "Awww binary not found (AUR install failed)."
+            
             LOCAL_BIN_AWWW="$PARENT_DIR/bin/awww"
             LOCAL_BIN_DAEMON="$PARENT_DIR/bin/awww-daemon"
+            USER_BIN_DIR="$HOME_DIR/.local/bin"
             
             if [ -f "$LOCAL_BIN_AWWW" ] && [ -f "$LOCAL_BIN_DAEMON" ]; then
-                log "-> Installing awww from LOCAL BINARIES (Fallback)..."
-                cp "$LOCAL_BIN_AWWW" /usr/local/bin/awww
-                cp "$LOCAL_BIN_DAEMON" /usr/local/bin/awww-daemon
-                chmod +x /usr/local/bin/awww /usr/local/bin/awww-daemon
-                success "Awww recovered using local binaries."
+                log "-> Installing awww from LOCAL BINARIES to ${BOLD}~/.local/bin${NC}..."
+                
+                # Ensure dir exists as user
+                runuser -u "$TARGET_USER" -- mkdir -p "$USER_BIN_DIR"
+                
+                # Copy as user (so permissions are correct)
+                runuser -u "$TARGET_USER" -- cp "$LOCAL_BIN_AWWW" "$USER_BIN_DIR/awww"
+                runuser -u "$TARGET_USER" -- cp "$LOCAL_BIN_DAEMON" "$USER_BIN_DIR/awww-daemon"
+                
+                # Make executable
+                runuser -u "$TARGET_USER" -- chmod +x "$USER_BIN_DIR/awww" "$USER_BIN_DIR/awww-daemon"
+                
+                success "Awww recovered (User Space Binary)."
             else
-                warn "Local binaries missing. Will try Swaybg later."
+                warn "Local binaries missing in $PARENT_DIR/bin. Will try Swaybg later."
             fi
         fi
 
@@ -303,7 +302,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Clone Dotfiles (Smart Mirror Logic)
+# 5. Clone Dotfiles
 # ------------------------------------------------------------------------------
 log "Step 5/9: Cloning and applying dotfiles..."
 
@@ -313,18 +312,14 @@ rm -rf "$TEMP_DIR"
 
 log "-> Cloning repository..."
 
-# Attempt 1: Try with whatever config is currently active (Mirror or Direct)
 if ! runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
     warn "Clone failed. Toggling Git Mirror setting and Retrying..."
-    
-    # Toggle Logic (Same as above)
     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
     else
         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
     fi
     
-    # Attempt 2
     if ! runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
         error "Clone failed on both Mirror and Direct connection."
     else
@@ -334,24 +329,25 @@ fi
 
 if [ -d "$TEMP_DIR/dotfiles" ]; then
     BACKUP_NAME="config_backup_$(date +%s).tar.gz"
-    log "-> [BACKUP] Backing up existing ~/.config to ~/$BACKUP_NAME..."
+    log "-> [BACKUP] Backing up ~/.config to ~/$BACKUP_NAME..."
     runuser -u "$TARGET_USER" -- tar -czf "$HOME_DIR/$BACKUP_NAME" -C "$HOME_DIR" .config
     
     log "-> Applying new dotfiles..."
     runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
     success "Dotfiles applied."
     
-    # --- [NEW] Clear specific config for non-shorin users ---
     if [ "$TARGET_USER" != "shorin" ]; then
         OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
         if [ -f "$OUTPUT_KDL" ]; then
-            log "-> Detected non-shorin user. Clearing specific monitor configuration..."
+            log "-> Clearing output.kdl for generic user..."
             runuser -u "$TARGET_USER" -- truncate -s 0 "$OUTPUT_KDL"
         fi
     fi
 
     # --- [ULTIMATE FALLBACK] Check Awww status ---
-    if ! command -v awww &> /dev/null; then
+    # Logic: If 'awww' is not in PATH (meaning yay failed AND local bin copy failed)
+    # Check both system bin and user bin implicitly via command -v
+    if ! runuser -u "$TARGET_USER" -- command -v awww &> /dev/null; then
         warn "Awww failed all install methods. Switching to swaybg..."
         pacman -S --noconfirm --needed swaybg > /dev/null 2>&1
         SCRIPT_PATH="$HOME_DIR/.config/scripts/niri_set_overview_blur_dark_bg.sh"
@@ -361,7 +357,6 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
         fi
     fi
 else
-    # Don't error out completely, user can manually clone later
     warn "Dotfiles directory missing. Configuration skipped."
 fi
 
@@ -393,19 +388,12 @@ pacman -S --noconfirm --needed swayosd > /dev/null 2>&1
 systemctl enable --now swayosd-libinput-backend.service > /dev/null 2>&1
 
 # ------------------------------------------------------------------------------
-# [CLEANUP] Remove temporary configs (Restoring State)
+# [CLEANUP] Remove temporary configs
 # ------------------------------------------------------------------------------
 log "Step 9/9: Restoring configuration (Cleanup)..."
 
-log "-> Removing temporary NOPASSWD sudo access..."
 rm -f "$SUDO_TEMP_FILE"
-
-# Clean up Git Mirror Config (Ensure it's gone)
-log "-> Restoring Git URL configuration..."
 runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
-
-# Remove GOPROXY
-log "-> Removing GOPROXY..."
 sed -i '/GOPROXY=https:\/\/goproxy.cn,direct/d' /etc/environment
 
 success "Cleanup complete."
@@ -418,7 +406,6 @@ log "Step 10/9: Configuring Auto-login..."
 if [ "$SKIP_AUTOLOGIN" = true ]; then
     echo -e "${YELLOW}[INFO] Existing Display Manager detected. Skipping TTY auto-login setup.${NC}"
 else
-    # 10.1 Getty
     GETTY_DIR="/etc/systemd/system/getty@tty1.service.d"
     mkdir -p "$GETTY_DIR"
     cat <<EOT > "$GETTY_DIR/autologin.conf"
@@ -427,7 +414,6 @@ ExecStart=
 ExecStart=-/sbin/agetty --noreset --noclear --autologin $TARGET_USER - \${TERM}
 EOT
 
-    # 10.2 Service File
     USER_SYSTEMD_DIR="$HOME_DIR/.config/systemd/user"
     mkdir -p "$USER_SYSTEMD_DIR"
     cat <<EOT > "$USER_SYSTEMD_DIR/niri-autostart.service"
@@ -443,13 +429,10 @@ Restart=on-failure
 WantedBy=default.target
 EOT
 
-    # 10.3 Manual Symlink
-    log "-> Enabling niri-autostart.service (Manual Symlink)..."
     WANTS_DIR="$USER_SYSTEMD_DIR/default.target.wants"
     mkdir -p "$WANTS_DIR"
     ln -sf "../niri-autostart.service" "$WANTS_DIR/niri-autostart.service"
 
-    # 10.4 Permission Fix
     chown -R "$TARGET_USER:$TARGET_USER" "$HOME_DIR/.config/systemd"
     
     success "TTY Auto-login configured."
