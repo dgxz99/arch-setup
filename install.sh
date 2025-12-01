@@ -1,22 +1,29 @@
 #!/bin/bash
 
 # ==============================================================================
-# Shorin Arch Setup - Main Installer
+# Shorin Arch Setup - Main Installer (v3.1)
 # ==============================================================================
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$BASE_DIR/scripts"
 STATE_FILE="$BASE_DIR/.install_progress"
 
-source "$SCRIPTS_DIR/00-utils.sh"
+# Source the visual engine
+if [ -f "$SCRIPTS_DIR/00-utils.sh" ]; then
+    source "$SCRIPTS_DIR/00-utils.sh"
+else
+    echo "Error: 00-utils.sh not found."
+    exit 1
+fi
 
-# --- [CRITICAL FIX] Export DEBUG to child scripts ---
+# --- Environment Propagation ---
 export DEBUG=${DEBUG:-0}
+export CN_MIRROR=${CN_MIRROR:-0}
 
 check_root
 chmod +x "$SCRIPTS_DIR"/*.sh
 
-# --- Banner Functions ---
+# --- ASCII Banners ---
 banner1() {
 cat << "EOF"
    _____ __  ______  ____  _____   __
@@ -38,7 +45,6 @@ EOF
 }
 
 banner3() {
-# Fixed typo: SHARIN -> SHORIN
 cat << "EOF"
    ______ __ __   ___   ____   ____  _   _ 
   / ___/|  |  | /   \ |    \ |    || \ | |
@@ -60,35 +66,48 @@ show_banner() {
         2) banner3 ;;
     esac
     echo -e "${NC}"
-    echo -e "${DIM}   :: Arch Linux Automation Protocol :: v2.2 ::${NC}"
-    
-    if [ "$DEBUG" == "1" ]; then
-        echo -e "\n${H_YELLOW}   [!] DEBUG MODE ENABLED: Forcing China Network Optimizations${NC}"
-    fi
+    echo -e "${DIM}   :: Arch Linux Automation Protocol :: v3.1 ::${NC}"
     echo ""
 }
 
-sys_info() {
+# --- System Dashboard ---
+sys_dashboard() {
     echo -e "${H_BLUE}╔════ SYSTEM DIAGNOSTICS ══════════════════════════════╗${NC}"
-    echo -e "${H_BLUE}║${NC} Kernel:  $(uname -r)"
-    echo -e "${H_BLUE}║${NC} User:    $(whoami)"
-    echo -e "${H_BLUE}║${NC} Mode:    $([ "$DEBUG" == "1" ] && echo "${H_YELLOW}DEBUG (CN Force)${NC}" || echo "Standard")"
+    echo -e "${H_BLUE}║${NC} ${BOLD}Kernel${NC}   : $(uname -r)"
+    echo -e "${H_BLUE}║${NC} ${BOLD}User${NC}     : $(whoami)"
+    
+    # Mirror Status
+    if [ "$CN_MIRROR" == "1" ]; then
+        echo -e "${H_BLUE}║${NC} ${BOLD}Network${NC}  : ${H_YELLOW}CN Optimized (Manual)${NC}"
+    elif [ "$DEBUG" == "1" ]; then
+        echo -e "${H_BLUE}║${NC} ${BOLD}Network${NC}  : ${H_RED}DEBUG FORCE (CN Mode)${NC}"
+    else
+        echo -e "${H_BLUE}║${NC} ${BOLD}Network${NC}  : Global Default"
+    fi
+    
+    # Progress
+    if [ -f "$STATE_FILE" ]; then
+        done_count=$(wc -l < "$STATE_FILE")
+        echo -e "${H_BLUE}║${NC} ${BOLD}Progress${NC} : Resuming ($done_count modules done)"
+    fi
+    
     echo -e "${H_BLUE}╚══════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
-# --- Main Logic ---
+# --- Main Execution ---
 
 show_banner
-sys_info
+sys_dashboard
 
-# Module List
+# Module Definition (Order Adjusted)
 MODULES=(
-    "01-base.sh"
-    "02-musthave.sh"
-    "03-user.sh"
-    "04-niri-setup.sh"
-    "05-apps.sh"
+    "01-base.sh"        # Editor, Pacman, Fonts
+    "02-musthave.sh"    # Audio, Input, Btrfs, Grub-Fix
+    "03-user.sh"        # User creation
+    "04-niri-setup.sh"  # Niri Desktop, Dotfiles, Recovery
+    "07-grub-theme.sh"  # Grub Theming (Moved up)
+    "99-apps.sh"        # Optional Common Apps (Moved to end)
 )
 
 if [ ! -f "$STATE_FILE" ]; then
@@ -98,32 +117,38 @@ fi
 TOTAL_STEPS=${#MODULES[@]}
 CURRENT_STEP=0
 
+# Fake Loading Effect
+log "Initializing installer sequence..."
+sleep 0.5
+
 for module in "${MODULES[@]}"; do
     CURRENT_STEP=$((CURRENT_STEP + 1))
     script_path="$SCRIPTS_DIR/$module"
     
     if [ ! -f "$script_path" ]; then
-        warn "Module not found: $module"
+        error "Module not found: $module"
         continue
     fi
 
-    box_title "Module ${CURRENT_STEP}/${TOTAL_STEPS}: $module" "${H_MAGENTA}"
+    # Using 'section' from 00-utils for consistent styling
+    section "Module ${CURRENT_STEP}/${TOTAL_STEPS}" "$module"
 
+    # Checkpoint Logic
     if grep -q "^${module}$" "$STATE_FILE"; then
-        echo -e "${H_GREEN}✔${NC} Module marked as COMPLETED."
-        read -p "$(echo -e ${H_YELLOW}"  Skip this module? [Y/n] "${NC})" skip_choice
+        echo -e "   ${H_GREEN}✔${NC} Module previously completed."
+        read -p "$(echo -e "   ${H_YELLOW}Skip this module? [Y/n] ${NC}")" skip_choice
         skip_choice=${skip_choice:-Y}
         
         if [[ "$skip_choice" =~ ^[Yy]$ ]]; then
-            log "Skipping $module..."
+            log "Skipping..."
             continue
         else
-            log "Force re-running $module..."
+            log "Force re-running..."
             sed -i "/^${module}$/d" "$STATE_FILE"
         fi
     fi
 
-    # Execute
+    # Run Module
     bash "$script_path"
     exit_code=$?
 
@@ -131,37 +156,46 @@ for module in "${MODULES[@]}"; do
         echo "$module" >> "$STATE_FILE"
     else
         echo ""
-        hr
-        error "CRITICAL FAILURE IN MODULE: $module (Exit Code: $exit_code)"
-        echo -e "${DIM}Fix the issue and re-run ./install.sh to resume.${NC}"
-        hr
+        echo -e "${H_RED}╔════ CRITICAL FAILURE ════════════════════════════════╗${NC}"
+        echo -e "${H_RED}║ Module '$module' failed with exit code $exit_code.${NC}"
+        echo -e "${H_RED}║ Fix the issue and run ./install.sh to resume.${NC}"
+        echo -e "${H_RED}╚══════════════════════════════════════════════════════╝${NC}"
         exit 1
     fi
 done
 
-# --- End Screen ---
+# --- Completion ---
+
 clear
 show_banner
-box_title "INSTALLATION COMPLETE" "${H_GREEN}"
 
-echo -e "   ${BOLD}Congratulations!${NC}"
-echo -e "   System deployment finished successfully."
-hr
+echo -e "${H_GREEN}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${H_GREEN}║             INSTALLATION  COMPLETE                   ║${NC}"
+echo -e "${H_GREEN}╚══════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "   ${BOLD}System Status:${NC}"
+echo -e "   ${H_BLUE}●${NC} Niri Desktop  : ${H_GREEN}Ready${NC}"
+echo -e "   ${H_BLUE}●${NC} Dotfiles      : ${H_GREEN}Applied${NC}"
+echo -e "   ${H_BLUE}●${NC} Bootloader    : ${H_GREEN}Themed${NC}"
+echo ""
 
+# Cleanup State
 if [ -f "$STATE_FILE" ]; then
     rm "$STATE_FILE"
 fi
 
-echo -e "${H_YELLOW}>>> System requires a REBOOT.${NC}"
+# Reboot Logic
+echo -e "${H_YELLOW}>>> System requires a REBOOT to initialize services.${NC}"
 
 for i in {10..1}; do
-    echo -ne "\r${DIM}Auto-rebooting in ${i} seconds... (Press 'n' to cancel)${NC}"
+    echo -ne "\r   ${DIM}Auto-rebooting in ${i} seconds... (Press 'n' to cancel)${NC}"
     read -t 1 -N 1 input
     if [[ "$input" == "n" || "$input" == "N" ]]; then
-        echo -e "\n${H_BLUE}>>> Reboot cancelled.${NC}"
+        echo -e "\n\n   ${H_BLUE}>>> Reboot cancelled.${NC}"
+        echo -e "   Type ${BOLD}reboot${NC} when you are ready."
         exit 0
     fi
 done
 
-echo -e "\n${H_GREEN}>>> Rebooting now...${NC}"
+echo -e "\n\n   ${H_GREEN}>>> Rebooting system...${NC}"
 reboot

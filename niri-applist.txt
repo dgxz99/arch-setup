@@ -14,7 +14,7 @@ clipse-bin
 clipse-gui
 satty
 swww
-waypaper
+waypaper-git
 waybar-cava-git
 ttf-jetbrains-mono-nerd
 grim

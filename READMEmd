@@ -1,0 +1,22 @@
+
+
+
+
+## 使用方法
+
+1. 安装一个archlinux系统
+
+2. 登录之后从tty运行以下命令
+
+        
+    ```
+    sudo pacman -S git && git clone https://github.com/SHORiN-KiWATA/shorin-arch-setup.git && cd shorin-arch-setup && sudo bash install.sh
+    ```
+
+    - github镜像站
+    
+        如果连不上git，可以使用github镜像站，用环境变量激活
+
+        ```
+        sudo pacman -Sy git && git clone https://gitclone.com/github.com/SHORiN-KiWATA/shorin-arch-setup.git && cd shorin-arch-setup && sudo CN_MIRROR=1 bash install.sh
+        ```

@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # ==============================================================================
-# 05-apps.sh - Common Applications Installation (Yay & Flatpak)
+# 99-apps.sh - Common Applications Installation (Yay & Flatpak)
+# ==============================================================================
+# Features:
+# - Install from common-applist.txt
+# - Support 'yay' and 'flatpak' prefixes
+# - Retry mechanism for stability
+# - Ctrl+C to SKIP current app (Exit Code 130 handling)
+# - Steam Chinese Locale Fix
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,10 +17,16 @@ source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
 
+# --- Interrupt Handler ---
+# Catch Ctrl+C (SIGINT), print message, and continue script execution
+trap 'echo -e "\n${H_YELLOW}>>> Operation cancelled by user (Ctrl+C). Skipping current item...${NC}"' INT
+
+log ">>> Starting Phase 5: Common Applications Setup"
+
 # ------------------------------------------------------------------------------
 # 0. Identify Target User
 # ------------------------------------------------------------------------------
-log "Step 0/4: Identifying Target User..."
+log "Step 0/4: Identify User"
 
 DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
 
@@ -27,13 +40,14 @@ fi
 HOME_DIR="/home/$TARGET_USER"
 
 # ------------------------------------------------------------------------------
-# 1. User Confirmation (Visual Upgrade)
+# 1. User Confirmation
 # ------------------------------------------------------------------------------
 echo ""
 box_title "OPTIONAL: Common Applications" "${H_CYAN}"
 
 echo -e "   This module reads from: ${BOLD}common-applist.txt${NC}"
 echo -e "   Format: ${DIM}lines starting with 'flatpak:' use Flatpak, others use Yay.${NC}"
+echo -e "   ${H_YELLOW}Tip: Press Ctrl+C during installation to skip a slow package.${NC}"
 echo ""
 
 read -p "$(echo -e ${H_YELLOW}"   Do you want to install these applications? [Y/n] "${NC})" choice
@@ -41,6 +55,7 @@ choice=${choice:-Y}
 
 if [[ ! "$choice" =~ ^[Yy]$ ]]; then
     log "User skipped application installation."
+    trap - INT # Reset trap before exit
     exit 0
 fi
 
@@ -54,12 +69,11 @@ log "Step 2/4: Parsing application list..."
 LIST_FILE="$PARENT_DIR/common-applist.txt"
 YAY_APPS=()
 FLATPAK_APPS=()
-FAILED_PACKAGES=() # Initialize failure tracking
+FAILED_PACKAGES=()
 
 if [ -f "$LIST_FILE" ]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
         line=$(echo "$line" | tr -d '\r' | xargs)
-        # Skip comments and empty lines
         [[ -z "$line" || "$line" =~ ^# ]] && continue
         
         if [[ "$line" == flatpak:* ]]; then
@@ -73,6 +87,7 @@ if [ -f "$LIST_FILE" ]; then
     log "-> Queue: ${BOLD}${#YAY_APPS[@]}${NC} Yay packages | ${BOLD}${#FLATPAK_APPS[@]}${NC} Flatpak packages."
 else
     warn "File ${BOLD}common-applist.txt${NC} not found. Skipping."
+    trap - INT
     exit 0
 fi
 
@@ -82,7 +97,7 @@ fi
 
 # --- A. Install Yay Apps ---
 if [ ${#YAY_APPS[@]} -gt 0 ]; then
-    log "Step 3a/4: Installing system packages (Yay)..."
+    section "Step 3a/4" "Installing System Packages (Yay)"
     
     # Configure NOPASSWD
     SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_apps"
@@ -90,27 +105,50 @@ if [ ${#YAY_APPS[@]} -gt 0 ]; then
     chmod 440 "$SUDO_TEMP_FILE"
     
     BATCH_LIST="${YAY_APPS[*]}"
-    log "-> Attempting batch install..."
+    log "Attempting batch install..."
     
-    # Try Batch
-    if runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
+    # Batch Attempt
+    runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST
+    batch_ret=$?
+    
+    if [ $batch_ret -eq 0 ]; then
         success "All system packages installed successfully."
+    elif [ $batch_ret -eq 130 ]; then
+        warn "Batch install interrupted by user. Switching to One-by-One mode to allow selective skipping..."
     else
         warn "Batch install failed. Switching to One-by-One mode..."
+    fi
+    
+    # Fallback / Retry One-by-One
+    if [ $batch_ret -ne 0 ]; then
         for pkg in "${YAY_APPS[@]}"; do
+            cmd "yay -S $pkg"
+            
             # Attempt 1
             if ! runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
+                ret=$?
+                
+                # Check if User Cancelled (130)
+                if [ $ret -eq 130 ]; then
+                    warn "Skipped '$pkg' (User Cancelled)."
+                    continue # Skip retry, move to next app
+                fi
+                
+                # Retry Attempt 2 (Only if not cancelled)
                 warn "Failed to install '$pkg'. Retrying (Attempt 2/2)..."
-                # Attempt 2
                 if ! runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
-                    error "Failed to install: $pkg"
-                    FAILED_PACKAGES+=("yay:$pkg")
+                    ret_retry=$?
+                    if [ $ret_retry -eq 130 ]; then
+                        warn "Skipped '$pkg' during retry."
+                    else
+                        error "Failed to install: $pkg"
+                        FAILED_PACKAGES+=("yay:$pkg")
+                    fi
                 else
                     success "Installed: $pkg (on retry)"
                 fi
             else
-                # Silent success for one-by-one to keep log clean
-                : 
+                success "Installed: $pkg" 
             fi
         done
     fi
@@ -120,21 +158,35 @@ fi
 
 # --- B. Install Flatpak Apps ---
 if [ ${#FLATPAK_APPS[@]} -gt 0 ]; then
-    log "Step 3b/4: Installing Flatpak packages..."
+    section "Step 3b/4" "Installing Flatpak Packages"
     
     for app in "${FLATPAK_APPS[@]}"; do
+        cmd "flatpak install $app"
+        
         # Attempt 1
         if flatpak install -y flathub "$app" > /dev/null 2>&1; then
             success "Installed: $app"
         else
+            ret=$?
+            if [ $ret -eq 130 ]; then
+                warn "Skipped '$app' (User Cancelled)."
+                continue
+            fi
+            
             warn "Flatpak install failed for '$app'. Waiting 3s to Retry..."
             sleep 3
+            
             # Attempt 2
             if flatpak install -y flathub "$app" > /dev/null 2>&1; then
                 success "Installed: $app (on retry)"
             else
-                error "Failed to install Flatpak: $app"
-                FAILED_PACKAGES+=("flatpak:$app")
+                ret_retry=$?
+                if [ $ret_retry -eq 130 ]; then
+                    warn "Skipped '$app' during retry."
+                else
+                    error "Failed to install Flatpak: $app"
+                    FAILED_PACKAGES+=("flatpak:$app")
+                fi
             fi
         fi
     done
@@ -155,19 +207,20 @@ if [ ${#FAILED_PACKAGES[@]} -gt 0 ]; then
     
     echo -e "${H_RED}[ATTENTION]${NC} Some applications failed. Report updated at: ${BOLD}$REPORT_FILE${NC}"
 else
-    success "All selected applications installed successfully."
+    success "App installation phase completed."
 fi
 
 # ------------------------------------------------------------------------------
 # 4. Steam Locale Fix
 # ------------------------------------------------------------------------------
-log "Step 4/4: applying Steam locale fix (zh_CN)..."
+section "Step 4/4" "Game Environment Tweaks"
 
 STEAM_desktop_modified=false
 
 # Method 1: Native Steam
 NATIVE_DESKTOP="/usr/share/applications/steam.desktop"
 if [ -f "$NATIVE_DESKTOP" ]; then
+    log "Checking Native Steam..."
     if ! grep -q "env LANG=zh_CN.UTF-8" "$NATIVE_DESKTOP"; then
         sed -i 's|^Exec=/usr/bin/steam|Exec=env LANG=zh_CN.UTF-8 /usr/bin/steam|' "$NATIVE_DESKTOP"
         sed -i 's|^Exec=steam|Exec=env LANG=zh_CN.UTF-8 steam|' "$NATIVE_DESKTOP"
@@ -180,6 +233,7 @@ fi
 
 # Method 2: Flatpak Steam
 if echo "${FLATPAK_APPS[@]}" | grep -q "com.valvesoftware.Steam" || flatpak list | grep -q "com.valvesoftware.Steam"; then
+    log "Checking Flatpak Steam..."
     flatpak override --env=LANG=zh_CN.UTF-8 com.valvesoftware.Steam
     success "Applied Flatpak Steam environment override."
     STEAM_desktop_modified=true
@@ -189,4 +243,7 @@ if [ "$STEAM_desktop_modified" = false ]; then
     log "-> Steam not found. Skipping fix."
 fi
 
-log ">>> Phase 5 completed."
+# Reset Trap
+trap - INT
+
+log "Module 99-apps completed."

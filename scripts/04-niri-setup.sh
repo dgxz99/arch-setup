@@ -1,70 +1,116 @@
 #!/bin/bash
 
 # ==============================================================================
-# 04-niri-setup.sh - Niri Desktop (Visual Enhanced)
+# 04-niri-setup.sh - Niri Desktop, Dotfiles & User Configuration
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/00-utils.sh"
 
-# Debug Config
+# --- Configuration ---
 DEBUG=${DEBUG:-0}
+CN_MIRROR=${CN_MIRROR:-0}
 
 check_root
 
-# ------------------------------------------------------------------------------
-# 0. User & Env Detection
-# ------------------------------------------------------------------------------
-section "Phase 4" "Environment Initialization"
+# --- Helper Function: Local Package Fallback ---
+install_local_fallback() {
+    local pkg_name="$1"
+    local search_dir="$PARENT_DIR/compiled/$pkg_name"
+    
+    # Check if directory exists
+    if [ ! -d "$search_dir" ]; then
+        return 1
+    fi
+    
+    # Find the first .pkg.tar.zst file
+    local pkg_file=$(find "$search_dir" -maxdepth 1 -name "*.pkg.tar.zst" | head -n 1)
+    
+    if [ -f "$pkg_file" ]; then
+        warn "Network install failed. Found local pre-compiled package."
+        log "-> Installing from: ${BOLD}$(basename "$pkg_file")${NC}..."
+        
+        # Use yay -U to handle dependencies automatically
+        # Note: We run as user so yay can resolve AUR deps if needed
+        cmd "yay -U $pkg_file"
+        if runuser -u "$TARGET_USER" -- yay -U --noconfirm "$pkg_file"; then
+            success "Installed from local backup."
+            return 0
+        else
+            error "Local package install failed."
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
 
-log "Detecting target user..."
+log ">>> Starting Phase 4: Niri Environment & Dotfiles Setup"
+
+# ------------------------------------------------------------------------------
+# 0. Identify Target User
+# ------------------------------------------------------------------------------
+log "Step 0/9: Identify User"
+
 DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
 
 if [ -n "$DETECTED_USER" ]; then
     TARGET_USER="$DETECTED_USER"
+    log "-> Automatically detected target user: ${BOLD}$TARGET_USER${NC}"
 else
-    warn "Standard user (UID 1000) not found."
-    read -p "   Please enter username: " TARGET_USER
+    warn "Could not detect a standard user (UID 1000)."
+    while true; do
+        read -p "Please enter the target username: " TARGET_USER
+        if id "$TARGET_USER" &>/dev/null; then
+            break
+        else
+            warn "User '$TARGET_USER' does not exist."
+        fi
+    done
 fi
+
 HOME_DIR="/home/$TARGET_USER"
+info_kv "Target" "$TARGET_USER"
+info_kv "Home"   "$HOME_DIR"
 
-# 展示检测结果
-info_kv "Target User" "$TARGET_USER"
-info_kv "Home Dir"    "$HOME_DIR"
+# ------------------------------------------------------------------------------
+# [SAFETY CHECK] Detect Existing Display Managers
+# ------------------------------------------------------------------------------
+log "[SAFETY CHECK] Checking for active Display Managers..."
 
-# DM Check
 DMS=("gdm" "sddm" "lightdm" "lxdm" "ly")
 SKIP_AUTOLOGIN=false
-log "Checking Display Managers..."
 
 for dm in "${DMS[@]}"; do
     if systemctl is-enabled "$dm.service" &>/dev/null; then
-        info_kv "Display Mgr" "$dm" "${H_YELLOW}(Active)${NC}"
-        warn "TTY auto-login will be SKIPPED to avoid conflicts."
+        info_kv "DM Detected" "$dm" "${H_YELLOW}(Active)${NC}"
+        warn "TTY auto-login configuration will be SKIPPED to avoid conflicts."
         SKIP_AUTOLOGIN=true
         break
     fi
 done
+
 if [ "$SKIP_AUTOLOGIN" = false ]; then
-    info_kv "Display Mgr" "None" "${H_GREEN}(TTY Auto-login enabled)${NC}"
+    log "-> No active DM. TTY auto-login will be configured."
 fi
 
 # ------------------------------------------------------------------------------
-# 1. Core Packages
+# 1. Install Niri & Essentials (+ Firefox Policy)
 # ------------------------------------------------------------------------------
 section "Step 1/9" "Installing Niri Core & Essentials"
 
 PKGS="niri xwayland-satellite xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome pciutils"
-cmd "pacman -S --needed $PKGS"
+cmd "pacman -S $PKGS"
 pacman -S --noconfirm --needed $PKGS > /dev/null 2>&1
-success "Niri core installed."
+success "Niri core packages installed."
 
-# Firefox Policy
-log "Configuring Firefox Policies..."
+# --- Firefox Extension Auto-Install (Pywalfox) ---
+log "Configuring Firefox Enterprise Policies..."
 FIREFOX_POLICY_DIR="/etc/firefox/policies"
-cmd "mkdir -p $FIREFOX_POLICY_DIR && write policies.json"
+cmd "mkdir -p $FIREFOX_POLICY_DIR"
 mkdir -p "$FIREFOX_POLICY_DIR"
+
 cat <<EOT > "$FIREFOX_POLICY_DIR/policies.json"
 {
   "policies": {
@@ -79,97 +125,95 @@ EOT
 success "Firefox Pywalfox policy applied."
 
 # ------------------------------------------------------------------------------
-# 2. Nautilus & GPU
+# 2. File Manager (Nautilus) Setup (Smart GPU Env)
 # ------------------------------------------------------------------------------
 section "Step 2/9" "File Manager & GPU Config"
 
-cmd "pacman -S nautilus ffmpegthumbnailer ..."
+cmd "pacman -S nautilus ffmpegthumbnailer..."
 pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus > /dev/null 2>&1
 
-# Symlink
-if [ ! -f /usr/bin/gnome-terminal ]; then
+# Symlink Kitty
+if [ ! -f /usr/bin/gnome-terminal ] || [ -L /usr/bin/gnome-terminal ]; then
     cmd "ln -sf /usr/bin/kitty /usr/bin/gnome-terminal"
     ln -sf /usr/bin/kitty /usr/bin/gnome-terminal
 fi
 
-# Nautilus Patch
+# Patch Nautilus (.desktop)
 DESKTOP_FILE="/usr/share/applications/org.gnome.Nautilus.desktop"
 if [ -f "$DESKTOP_FILE" ]; then
     log "Detecting GPU configuration..."
+    
     GPU_COUNT=$(lspci | grep -E -i "vga|3d" | wc -l)
     HAS_NVIDIA=$(lspci | grep -E -i "nvidia" | wc -l)
     
     ENV_VARS="env GTK_IM_MODULE=fcitx"
+    
     if [ "$GPU_COUNT" -gt 1 ] && [ "$HAS_NVIDIA" -gt 0 ]; then
-        info_kv "GPU Setup" "Hybrid (Nvidia)" "-> Enabling GSK_RENDERER=gl"
+        info_kv "GPU Config" "Hybrid (Nvidia)" "-> Enabling GSK_RENDERER=gl"
         ENV_VARS="env GSK_RENDERER=gl GTK_IM_MODULE=fcitx"
     else
-        info_kv "GPU Setup" "Standard"
+        info_kv "GPU Config" "Standard" "-> Standard GTK vars only"
     fi
     
-    cmd "sed -i 's/^Exec=/.../' $DESKTOP_FILE"
+    cmd "sed -i ... $DESKTOP_FILE"
     sed -i "s/^Exec=/Exec=$ENV_VARS /" "$DESKTOP_FILE"
+    success "Nautilus .desktop patched."
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Network Optimization
+# 3. Smart Network Optimization
 # ------------------------------------------------------------------------------
 section "Step 3/9" "Network Optimization"
 
-# Flatpak
-cmd "pacman -S flatpak && flatpak remote-add flathub"
 pacman -S --noconfirm --needed flatpak gnome-software > /dev/null 2>&1
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-# Timezone & Mirrors
-CURRENT_TZ=$(readlink -f /etc/localtime)
+# Logic: CN_MIRROR env var OR Debug mode
 IS_CN_ENV=false
 
-# Debug Check
-if [ "$DEBUG" == "1" ]; then
-    warn "DEBUG MODE: Simulating China Network Environment."
-    CURRENT_TZ="Asia/Shanghai"
-fi
-
-info_kv "Timezone" "${CURRENT_TZ##*/}"
-
-if [[ "$CURRENT_TZ" == *"Shanghai"* ]]; then
+if [ "$CN_MIRROR" == "1" ] || [ "$DEBUG" == "1" ]; then
     IS_CN_ENV=true
-    log "Applying China optimizations..."
+    if [ "$DEBUG" == "1" ]; then warn "DEBUG MODE ACTIVE"; fi
     
+    log "Enabling China optimizations (Mirror/Proxy)..."
+    
+    # 1. Flatpak
     cmd "flatpak remote-modify flathub --url=ustc..."
     flatpak remote-modify flathub --url=https://mirrors.ustc.edu.cn/flathub
     
+    # 2. GOPROXY
     cmd "export GOPROXY=https://goproxy.cn,direct"
     export GOPROXY=https://goproxy.cn,direct
     if ! grep -q "GOPROXY" /etc/environment; then
         echo "GOPROXY=https://goproxy.cn,direct" >> /etc/environment
     fi
     
-    cmd "git config --global url.gitclone.com..."
+    # 3. Git Mirror
+    cmd "git config url.gitclone.com..."
     runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
     
-    success "Optimizations Active."
+    success "Optimizations Enabled."
 else
-    log "Using global official sources."
+    log "Using official sources."
 fi
 
-# NOPASSWD
-cmd "echo '$TARGET_USER ... NOPASSWD' > /etc/sudoers.d/..."
+# ------------------------------------------------------------------------------
+# [TRICK] NOPASSWD for yay
+# ------------------------------------------------------------------------------
+log "Configuring temporary sudo access..."
 SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 
 # ------------------------------------------------------------------------------
-# 4. Dependency Installation
+# 4. Install Dependencies
 # ------------------------------------------------------------------------------
-section "Step 4/9" "Installing Dependencies (AUR)"
+section "Step 4/9" "Installing Dependencies"
 
 LIST_FILE="$PARENT_DIR/niri-applist.txt"
 FAILED_PACKAGES=()
 
 if [ -f "$LIST_FILE" ]; then
-    # Filter list
     mapfile -t PACKAGE_ARRAY < <(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | tr -d '\r')
     
     if [ ${#PACKAGE_ARRAY[@]} -gt 0 ]; then
@@ -178,6 +222,8 @@ if [ -f "$LIST_FILE" ]; then
 
         for pkg in "${PACKAGE_ARRAY[@]}"; do
             [ "$pkg" == "imagemagic" ] && pkg="imagemagick"
+            
+            # awww-git, waypaper-git etc. are allowed here.
             if [[ "$pkg" == *"-git" ]]; then
                 GIT_LIST+=("$pkg")
             else
@@ -185,53 +231,63 @@ if [ -f "$LIST_FILE" ]; then
             fi
         done
         
-        # Phase 1: Batch
+        # --- Phase 1: Batch Install ---
         if [ -n "$BATCH_LIST" ]; then
-            log "Phase 1: Installing standard packages..."
-            cmd "yay -S --noconfirm $BATCH_LIST"
+            log "Phase 1: Batch Install (Standard Pkgs)..."
             
+            # Attempt 1
             if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-                if [ "$IS_CN_ENV" = true ]; then
-                    warn "Mirror failed. Disabling git mirror and retrying direct..."
+                warn "Batch failed. Toggling Mirror and Retrying..."
+                
+                # Toggle Mirror
+                if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                     runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
-                    
-                    cmd "yay -S ... (Direct Mode)"
-                    if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-                        error "Batch install failed."
-                    else
-                        success "Batch installed (Direct)."
-                    fi
                 else
-                    error "Batch install failed."
+                    runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
+                fi
+                
+                # Attempt 2
+                if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
+                    error "Batch install failed. Check logs."
+                else
+                    success "Batch installed (Retry)."
                 fi
             else
-                success "Standard packages installed."
+                success "Batch installed."
             fi
         fi
 
-        # Phase 2: Git
+        # --- Phase 2: Git Install (With Local Fallback) ---
         if [ ${#GIT_LIST[@]} -gt 0 ]; then
-            log "Phase 2: Compiling Git packages..."
+            log "Phase 2: Git Install (One-by-One)..."
             for git_pkg in "${GIT_LIST[@]}"; do
                 cmd "yay -S $git_pkg"
+                
+                # Attempt 1
                 if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
-                    warn "Failed. Toggling mirror and retrying..."
+                    warn "Failed. Toggling Mirror..."
                     
                     # Toggle Logic
                     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
-                        log "-> Mode: Direct"
                     else
                         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
-                        log "-> Mode: Mirror"
                     fi
                     
-                    cmd "yay -S $git_pkg (Retry)"
+                    # Attempt 2
                     if ! runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
-                        error "Failed: $git_pkg"
-                        FAILED_PACKAGES+=("$git_pkg")
+                        
+                        # --- [NEW] Local Package Fallback ---
+                        warn "Network install failed for '$git_pkg'. Checking local compiled cache..."
+                        if install_local_fallback "$git_pkg"; then
+                            # Success via local file
+                            :
+                        else
+                            error "Failed: $git_pkg (Network & Local both failed)"
+                            FAILED_PACKAGES+=("$git_pkg")
+                        fi
                     else
-                        success "Installed $git_pkg"
+                        success "Installed $git_pkg (On Retry)"
                     fi
                 else
                     success "Installed $git_pkg"
@@ -239,31 +295,20 @@ if [ -f "$LIST_FILE" ]; then
             done
         fi
         
-        # Recovery
-        log "Verifying critical components..."
+        # --- Recovery Phase ---
+        log "Running Recovery Checks..."
         
+        # Waybar Recovery
         if ! command -v waybar &> /dev/null; then
             warn "Waybar missing. Installing stock package..."
-            cmd "pacman -S waybar"
             pacman -S --noconfirm --needed waybar > /dev/null 2>&1
         fi
 
+        # Awww Recovery (Ultimate Check)
+        # If install_local_fallback succeeded above, this should pass.
+        # If it failed, we warn here and rely on Swaybg later.
         if ! command -v awww &> /dev/null; then
-            warn "Awww missing. Checking local binaries..."
-            LOCAL_BIN_AWWW="$PARENT_DIR/bin/awww"
-            LOCAL_BIN_DAEMON="$PARENT_DIR/bin/awww-daemon"
-            USER_BIN_DIR="$HOME_DIR/.local/bin"
-            
-            if [ -f "$LOCAL_BIN_AWWW" ]; then
-                log "-> Installing to $USER_BIN_DIR..."
-                runuser -u "$TARGET_USER" -- mkdir -p "$USER_BIN_DIR"
-                runuser -u "$TARGET_USER" -- cp "$LOCAL_BIN_AWWW" "$USER_BIN_DIR/awww"
-                runuser -u "$TARGET_USER" -- cp "$LOCAL_BIN_DAEMON" "$USER_BIN_DIR/awww-daemon"
-                runuser -u "$TARGET_USER" -- chmod +x "$USER_BIN_DIR/awww" "$USER_BIN_DIR/awww-daemon"
-                success "Awww recovered (Local Bin)."
-            else
-                warn "Local binaries missing."
-            fi
+            warn "Awww not found. Will fallback to Swaybg in next step."
         fi
 
         # Failure Report
@@ -281,7 +326,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Dotfiles
+# 5. Clone Dotfiles
 # ------------------------------------------------------------------------------
 section "Step 5/9" "Deploying Dotfiles"
 
@@ -290,52 +335,54 @@ TEMP_DIR="/tmp/shorin-repo"
 rm -rf "$TEMP_DIR"
 
 log "Cloning repository..."
-cmd "git clone $REPO_URL"
-
+# Attempt 1
 if ! runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
-    warn "Clone failed. Retrying with mirror toggle..."
-    # Toggle logic (simplified for brevity, logic same as before)
+    warn "Clone failed. Toggling Mirror..."
+    # Toggle Logic
     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
     else
         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
     fi
     
-    cmd "git clone $REPO_URL (Retry)"
+    # Attempt 2
     if ! runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
-        error "Clone failed."
+        error "Clone failed. Config deployment skipped."
     else
-        success "Cloned successfully."
+        success "Cloned successfully (Retry)."
     fi
 fi
 
 if [ -d "$TEMP_DIR/dotfiles" ]; then
     BACKUP_NAME="config_backup_$(date +%s).tar.gz"
     log "Backing up ~/.config..."
-    cmd "tar -czf $BACKUP_NAME .config"
     runuser -u "$TARGET_USER" -- tar -czf "$HOME_DIR/$BACKUP_NAME" -C "$HOME_DIR" .config
     
     log "Applying dotfiles..."
-    cmd "cp -rf dotfiles/* $HOME_DIR/"
     runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
     success "Dotfiles applied."
     
     # Clean non-shorin config
     if [ "$TARGET_USER" != "shorin" ]; then
-        log "Cleaning output.kdl for user $TARGET_USER..."
-        runuser -u "$TARGET_USER" -- truncate -s 0 "$HOME_DIR/.config/niri/output.kdl"
+        OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
+        if [ -f "$OUTPUT_KDL" ]; then
+            log "Clearing output.kdl for generic user..."
+            runuser -u "$TARGET_USER" -- truncate -s 0 "$OUTPUT_KDL"
+        fi
     fi
 
     # Ultimate Fallback (Swaybg)
     if ! runuser -u "$TARGET_USER" -- command -v awww &> /dev/null; then
         warn "Awww not found. Switching backend to swaybg..."
-        cmd "pacman -S swaybg"
         pacman -S --noconfirm --needed swaybg > /dev/null 2>&1
-        sed -i 's/^WALLPAPER_BACKEND="awww"/WALLPAPER_BACKEND="swaybg"/' "$HOME_DIR/.config/scripts/niri_set_overview_blur_dark_bg.sh"
-        success "Switched to swaybg."
+        SCRIPT_PATH="$HOME_DIR/.config/scripts/niri_set_overview_blur_dark_bg.sh"
+        if [ -f "$SCRIPT_PATH" ]; then
+            sed -i 's/^WALLPAPER_BACKEND="awww"/WALLPAPER_BACKEND="swaybg"/' "$SCRIPT_PATH"
+            success "Switched to swaybg."
+        fi
     fi
 else
-    error "Dotfiles source missing."
+    warn "Dotfiles directory missing. Configuration skipped."
 fi
 
 # ------------------------------------------------------------------------------
@@ -343,8 +390,8 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 6/9" "Wallpapers"
 WALL_DEST="$HOME_DIR/Pictures/Wallpapers"
+
 if [ -d "$TEMP_DIR/wallpapers" ]; then
-    cmd "cp wallpapers -> $WALL_DEST"
     runuser -u "$TARGET_USER" -- mkdir -p "$WALL_DEST"
     runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/wallpapers/." "$WALL_DEST/"
     success "Wallpapers installed."
@@ -373,7 +420,7 @@ success "Hardware tools configured."
 # ------------------------------------------------------------------------------
 section "Step 9/9" "Cleanup & Restore"
 
-log "Removing temporary access & configs..."
+log "Removing temporary configs..."
 rm -f "$SUDO_TEMP_FILE"
 runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
 sed -i '/GOPROXY=https:\/\/goproxy.cn,direct/d' /etc/environment
