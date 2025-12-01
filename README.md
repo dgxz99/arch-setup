@@ -47,7 +47,11 @@
             ```
             sudo pacman -Sy git && git clone https://gitclone.com/github.com/SHORiN-KiWATA/shorin-arch-setup.git && cd shorin-arch-setup && sudo CN_MIRROR=1 bash install.sh
             ```
+3. 打开快捷键教程
 
+    安装完成后会自动重启，由于配置了自动登录和niri自动启动（如果你没有显示管理器的话），会直接进桌面。
+
+    按下super+shift+左斜杠打开按键教程。
 
 ## 脚本功能
 
