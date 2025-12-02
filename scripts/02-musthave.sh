@@ -66,6 +66,9 @@ exe pacman -Syu --noconfirm --needed pipewire wireplumber pipewire-pulse pipewir
 exe systemctl --global enable pipewire pipewire-pulse wireplumber
 success "Audio setup complete."
 
+## 测试快照
+exit 1
+
 # ------------------------------------------------------------------------------
 # 3. Locale
 # ------------------------------------------------------------------------------
