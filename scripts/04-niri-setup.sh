@@ -20,7 +20,22 @@ install_local_fallback() {
     if [ ! -d "$search_dir" ]; then return 1; fi
     local pkg_file=$(find "$search_dir" -maxdepth 1 -name "*.pkg.tar.zst" | head -n 1)
     if [ -f "$pkg_file" ]; then
-        warn "Network install failed. Using local fallback..."
+        warn "Using local fallback for '$pkg_name'..."
+
+        # [FIX] First, install dependencies from the local package's metadata
+        log "Resolving dependencies for local package..."
+        # Extract dependency list from the .PKGINFO file inside the tarball
+        local deps=$(tar -xOf "$pkg_file" .PKGINFO | grep -E '^depend' | cut -d '=' -f 2 | xargs)
+        
+        if [ -n "$deps" ]; then
+            log "Dependencies found: $deps"
+            if ! exe runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --asdeps $deps; then
+                error "Failed to install dependencies for local package '$pkg_name'."
+                return 1
+            fi
+        fi
+
+        log "Dependencies met. Installing local package..."
         if exe runuser -u "$TARGET_USER" -- yay -U --noconfirm "$pkg_file"; then
             success "Installed from local."; return 0
         else
