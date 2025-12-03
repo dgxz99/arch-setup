@@ -158,6 +158,9 @@ if [ "$IS_CN_ENV" = true ]; then
     read -t 60 -p "$(echo -e "   ${H_YELLOW}Enter choice [1-4]: ${NC}")" mirror_choice
     if [ $? -ne 0 ]; then echo ""; fi # Handle timeout newline
     mirror_choice=${mirror_choice:-1} # Default to SJTU
+
+    # [FIX] Trim whitespace/newlines from user input to ensure case matching
+    mirror_choice=$(echo "$mirror_choice" | xargs)
     
     case "$mirror_choice" in
         1)
@@ -212,7 +215,7 @@ if [ -f "$LIST_FILE" ]; then
         GIT_LIST=()
         for pkg in "${PACKAGE_ARRAY[@]}"; do
             [ "$pkg" == "imagemagic" ] && pkg="imagemagick"
-            if [[ "$pkg" == *"-git" ]]; then GIT_LIST+=("$pkg"); else BATCH_LIST+="$pkg "; fi
+            if [[ "$pkg" == *"-git" || "$pkg" == "clipse-gui" ]]; then GIT_LIST+=("$pkg"); else BATCH_LIST+="$pkg "; fi
         done
 
         # 根据中文环境标志，重排安装列表
