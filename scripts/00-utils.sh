@@ -5,6 +5,7 @@
 # ==============================================================================
 
 # --- 1. 颜色与样式定义 (ANSI) ---
+# 注意：这里定义的是字面量字符串，需要 echo -e 来解析
 export NC='\033[0m'
 export BOLD='\033[1m'
 export DIM='\033[2m'
@@ -108,33 +109,16 @@ error() {
 }
 
 # --- 4. 核心：命令执行器 (Command Exec) ---
-# 用法: exe "可选描述" 命令 参数...
-# 示例: exe "Installing Git" pacman -S git
-# 如果第一个参数不是以 - 开头的命令，它会被视为描述。
-# 否则直接打印命令本身。
-
 exe() {
-    local desc=""
-    local cmd_array=()
-    
-    # 简单的判断：如果第一个参数包含空格或者看起来像描述，就把它当描述
-    # 这里我们采用显式方式：调用者最好传递 exe "cmd args..." 或者 exe "desc" "cmd args..."
-    
-    # 为了简化脚本编写，我们假设所有调用 exe 的地方，直接传完整命令即可。
-    # 脚本会自动把命令高亮显示出来。
-    
     local full_command="$*"
     
-    # Visual: 显示正在运行的命令 (灰色背景或 Dim)
-    # 模拟终端提示符
+    # Visual: 显示正在运行的命令
     echo -e "   ${H_GRAY}┌──[ ${H_MAGENTA}EXEC${H_GRAY} ]────────────────────────────────────────────────────${NC}"
     echo -e "   ${H_GRAY}│${NC} ${H_CYAN}$ ${NC}${BOLD}$full_command${NC}"
     
     write_log "EXEC" "$full_command"
     
     # Run the command
-    # 捕获输出并缩进显示 (Optional, but makes it cleaner)
-    # 为了保留交互性 (如 sudo 密码)，直接执行，但捕获返回值
     "$@" 
     local status=$?
     
@@ -147,16 +131,16 @@ exe() {
     fi
 }
 
-# 静默执行 (不打印命令，只打印结果，用于敏感或刷屏命令)
+# 静默执行
 exe_silent() {
     "$@" > /dev/null 2>&1
 }
 
 # --- 5. 可复用逻辑块 ---
 
-# 动态选择 Flathub 镜像源
+# 动态选择 Flathub 镜像源 (修复版：使用 echo -e 处理颜色变量)
 select_flathub_mirror() {
-    # 1. 使用普通数组以保证顺序 (索引数组)
+    # 1. 索引数组保证顺序
     local names=(
         "SJTU (Shanghai Jiao Tong)"
         "TUNA (Tsinghua University)"
@@ -173,14 +157,12 @@ select_flathub_mirror() {
         "https://dl.flathub.org/repo/flathub.flatpakrepo"
     )
 
-    # 2. 动态计算菜单宽度
+    # 2. 动态计算菜单宽度 (基于无颜色的纯文本)
     local max_len=0
     local title_text="Select Flathub Mirror (60s Timeout)"
     
-    # 基础长度至少要能放下标题
     max_len=${#title_text}
 
-    # 遍历找出最长选项
     for name in "${names[@]}"; do
         # 预估显示长度："[x] Name - Recommended"
         local item_len=$((${#name} + 4 + 14)) 
@@ -189,89 +171,85 @@ select_flathub_mirror() {
         fi
     done
 
-    # 增加一点内边距
+    # 菜单总宽度
     local menu_width=$((max_len + 4))
 
-    # 定义边框生成函数
-    draw_border() {
-        local type=$1
-        local width=$2
-        local line=""
-        # 生成指定长度的横线
-        printf -v line "%*s" "$width" ""
-        line=${line// /─}
-        
-        case $type in
-            top)    printf "${H_PURPLE}╭%s╮${NC}\n" "$line" ;;
-            mid)    printf "${H_PURPLE}├%s┤${NC}\n" "$line" ;;
-            bot)    printf "${H_PURPLE}╰%s╯${NC}\n" "$line" ;;
-        esac
-    }
-
-    # --- 3. 渲染菜单 ---
+    # --- 3. 渲染菜单 (使用 echo -e 确保颜色变量被解析) ---
     echo ""
-    draw_border "top" "$menu_width"
+    
+    # 生成横线
+    local line_str=""
+    printf -v line_str "%*s" "$menu_width" ""
+    line_str=${line_str// /─}
 
-    # 打印标题 (居中算法)
+    # 打印顶部边框
+    echo -e "${H_PURPLE}╭${line_str}╮${NC}"
+
+    # 打印标题 (计算居中填充)
     local title_padding_len=$(( (menu_width - ${#title_text}) / 2 ))
-    printf "${H_PURPLE}│${NC}%*s${BOLD}%s${NC}%*s${H_PURPLE}│${NC}\n" \
-        $title_padding_len "" \
-        "$title_text" \
-        $((menu_width - ${#title_text} - title_padding_len)) ""
+    local right_padding_len=$((menu_width - ${#title_text} - title_padding_len))
+    
+    # 生成填充空格
+    local t_pad_l=""; printf -v t_pad_l "%*s" "$title_padding_len" ""
+    local t_pad_r=""; printf -v t_pad_r "%*s" "$right_padding_len" ""
+    
+    echo -e "${H_PURPLE}│${NC}${t_pad_l}${BOLD}${title_text}${NC}${t_pad_r}${H_PURPLE}│${NC}"
 
-    draw_border "mid" "$menu_width"
+    # 打印中间分隔线
+    echo -e "${H_PURPLE}├${line_str}┤${NC}"
 
     # 打印选项
     for i in "${!names[@]}"; do
         local name="${names[$i]}"
         local display_idx=$((i+1))
-        local display_str=""
         
-        # 构造显示字符串（先不加颜色，用于计算填充）
-        local raw_str=" [$display_idx] $name"
-        
-        # 构造实际输出字符串（带颜色）
+        # 1. 构造用于显示的带颜色字符串
         local color_str=""
-        
-        # 逻辑：如果是第一个(SJTU)，标记为推荐
+        # 2. 构造用于计算长度的无颜色字符串
+        local raw_str=""
+
         if [ "$i" -eq 0 ]; then
-            raw_str="${raw_str} - Recommended"
+            raw_str=" [$display_idx] $name - Recommended"
             color_str=" ${H_CYAN}[$display_idx]${NC} ${name} - ${H_GREEN}Recommended${NC}"
         else
+            raw_str=" [$display_idx] $name"
             color_str=" ${H_CYAN}[$display_idx]${NC} ${name}"
         fi
 
-        # 计算右侧填充空格数
+        # 计算右侧填充空格
         local padding=$((menu_width - ${#raw_str}))
+        local pad_str=""; 
+        if [ "$padding" -gt 0 ]; then
+            printf -v pad_str "%*s" "$padding" ""
+        fi
         
-        # 打印行：左边框 + 内容 + 填充空格 + 右边框
-        # 注意：这里 printf 只负责打印空格填充，内容直接作为变量插入
-        printf "${H_PURPLE}│${NC}%s%*s${H_PURPLE}│${NC}\n" "$color_str" "$padding" ""
+        # 打印：边框 + 内容 + 填充 + 边框
+        echo -e "${H_PURPLE}│${NC}${color_str}${pad_str}${H_PURPLE}│${NC}"
     done
 
-    draw_border "bot" "$menu_width"
+    # 打印底部边框
+    echo -e "${H_PURPLE}╰${line_str}╯${NC}"
     echo ""
 
     # --- 4. 用户交互 ---
     local choice
+    # 提示符
     read -t 60 -p "$(echo -e "   ${H_YELLOW}Enter choice [1-${#names[@]}]: ${NC}")" choice
-    if [ $? -ne 0 ]; then echo ""; fi # 处理超时换行
+    if [ $? -ne 0 ]; then echo ""; fi
     choice=${choice:-1}
     
-    # 校验输入
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#names[@]}" ]; then
         log "Invalid choice or timeout. Defaulting to SJTU..."
         choice=1
     fi
 
-    # 获取结果
     local index=$((choice-1))
     local selected_name="${names[$index]}"
     local selected_url="${urls[$index]}"
 
     log "Setting Flathub mirror to: ${H_GREEN}$selected_name${NC}"
     
-    # 执行修改
+    # 执行修改 (仅修改 flathub，不涉及 github)
     if exe flatpak remote-modify flathub --url="$selected_url"; then
         success "Mirror updated."
     else
