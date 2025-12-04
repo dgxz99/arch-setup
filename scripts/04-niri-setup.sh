@@ -293,16 +293,14 @@ if ! exe runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
 fi
 
 if [ -d "$TEMP_DIR/dotfiles" ]; then
-    # --- [NEW] Check UID 1000 and remove bookmarks if not shorin ---
-    # 获取 UID 1000 的用户名
+    # --- Check UID 1000 and remove bookmarks if not shorin ---
     UID1000_USER=$(id -nu 1000 2>/dev/null)
     
-    # 如果该用户不是 shorin，则在复制前删除源目录中的 bookmarks
     if [ "$UID1000_USER" != "shorin" ]; then
         log "UID 1000 user ($UID1000_USER) is not shorin. Removing gtk bookmarks..."
         rm -f "$TEMP_DIR/dotfiles/.config/gtk-3.0/bookmarks"
     fi
-    # ---------------------------------------------------------------
+    # ---------------------------------------------------------
 
     BACKUP_NAME="config_backup_$(date +%s).tar.gz"
     log "Backing up..."
@@ -311,6 +309,22 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
     log "Applying..."
     # 此时 bookmarks 文件如果需要被删，已经在上面的步骤中从源头删除了
     exe runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
+
+    # --- [NEW] Re-link GTK 4.0 Assets for dynamic user path ---
+    log "Fixing GTK 4.0 symlinks..."
+    GTK4_CONF="$HOME_DIR/.config/gtk-4.0"
+    THEME_SRC="$HOME_DIR/.themes/adw-gtk3-dark/gtk-4.0"
+
+    # 1. 移除刚刚复制过来的死链接 (assets, gtk.css, gtk-dark.css)
+    exe runuser -u "$TARGET_USER" -- rm -f "$GTK4_CONF/assets" "$GTK4_CONF/gtk.css" "$GTK4_CONF/gtk-dark.css"
+
+    # 2. 重新创建指向当前用户 Home 目录的软链接
+    # 使用 -f 强制覆盖，确保链接创建成功
+    exe runuser -u "$TARGET_USER" -- ln -sf "$THEME_SRC/gtk-dark.css" "$GTK4_CONF/gtk-dark.css"
+    exe runuser -u "$TARGET_USER" -- ln -sf "$THEME_SRC/gtk.css" "$GTK4_CONF/gtk.css"
+    exe runuser -u "$TARGET_USER" -- ln -sf "$THEME_SRC/assets" "$GTK4_CONF/assets"
+    # ----------------------------------------------------------
+
     success "Applied."
     
     if [ "$TARGET_USER" != "shorin" ]; then
