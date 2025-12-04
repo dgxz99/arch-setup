@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 99-apps.sh - Common Applications (Multi-Desktop Aware)
+# 99-apps.sh - Common Applications (Multi-Desktop Aware + Timeout)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +31,7 @@ info_kv "Target" "$TARGET_USER"
 # ------------------------------------------------------------------------------
 # 1. List Selection & Confirmation
 # ------------------------------------------------------------------------------
-# [MODIFIED] Select list based on Desktop Environment
+# Select list based on Desktop Environment
 if [ "$DESKTOP_ENV" == "kde" ]; then
     LIST_FILENAME="kde-common-applist.txt"
 else
@@ -44,7 +44,10 @@ echo -e "   Format: ${DIM}lines starting with 'flatpak:' use Flatpak, others use
 echo -e "   ${H_YELLOW}Tip: Press Ctrl+C during any install to SKIP that package.${NC}"
 echo ""
 
-read -p "$(echo -e "   ${H_CYAN}Install these applications? [Y/n] ${NC}")" choice
+# [MODIFIED] Added timeout -t 60
+read -t 60 -p "$(echo -e "   ${H_CYAN}Install these applications? [Y/n] (Default Y in 60s): ${NC}")" choice
+if [ $? -ne 0 ]; then echo ""; fi # Handle timeout newline
+
 choice=${choice:-Y}
 
 if [[ ! "$choice" =~ ^[Yy]$ ]]; then
@@ -99,7 +102,7 @@ if [ ${#YAY_APPS[@]} -gt 0 ]; then
     BATCH_LIST="${YAY_APPS[*]}"
     log "Attempting batch install..."
     
-    # [FIX] yay -S -> yay -Syu
+    # yay -Syu
     exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST
     batch_ret=$?
     
