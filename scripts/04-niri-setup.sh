@@ -380,7 +380,7 @@ WantedBy=default.target
 EOT
     exe mkdir -p "$WANTS_DIR"
     exe ln -sf "../niri-autostart.service" "$LINK_PATH"
-    exe chown -R "$TARGET_USER:$TARGET_USER" "$HOME_DIR/.config/systemd"
+    exe chown -R "$TARGET_USER" "$HOME_DIR/.config/systemd"
     success "Enabled."
 fi
 
