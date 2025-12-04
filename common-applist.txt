@@ -4,7 +4,6 @@ mpv
 linuxqq-appimage
 wechat-appimage
 fragments
-typora-free
 btop
 gnome-disk-utility
 dosfstools
