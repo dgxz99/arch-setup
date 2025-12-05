@@ -99,7 +99,7 @@ success "ArchLinuxCN configured."
 section "Step 5/5" "AUR Helpers"
 
 log "Installing yay and paru..."
-exe pacman -Syu --noconfirm --needed yay paru
+exe pacman -Syu --noconfirm --needed base-devel yay paru
 success "Helpers installed."
 
 log "Module 01 completed."
