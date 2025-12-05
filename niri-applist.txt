@@ -10,7 +10,7 @@ eza
 swaylock-effects
 swayidle
 wl-clipboard
-swww
+swww6
 waypaper
 waybar
 ttf-jetbrains-mono-nerd
