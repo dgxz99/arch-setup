@@ -3,13 +3,11 @@ steam                                    # Gaming Platform (Valve)
 lutris                                   # Gaming outside steam
 mpv                                      # Minimalist High Performance Video Player
 fragments                                # BitTorrent Client (GNOME style)
-com.obsproject.Studio                    # OBS Studio (Streaming & Recording)
 
 # --- System Utilities ---
 btop                                     # Resource Monitor (TUI)
 gnome-disk-utility                       # Disk Management Utility (Disks)
 baobab                                   # Disk Usage Analyzer
-it.mijorus.gearlever                     # AppImage Manager (Integrates AppImages)
 mission-center                           # System Monitor (Task Manager style)
 
 # --- Filesystem Support ---
@@ -31,6 +29,8 @@ AUR:linuxqq-appimage                     # Tencent QQ (AppImage)
 AUR:wechat-appimage                      # WeChat (AppImage)
 
 # --- Flatpak Packages (Prefix with flatpak:) ---
+flatpak:it.mijorus.gearlever                     # AppImage Manager (Integrates AppImages)
+flatpak:com.obsproject.Studio            # OBS Studio (Streaming & Recording)
 flatpak:io.github.fabrialberio.pinapp    # PinApp (Unofficial Pinterest Client)
 flatpak:it.mijorus.gearlever             # Gear Lever (AppImage Manager)
 flatpak:com.obsproject.Studio            # OBS Studio (Streaming/Recording)

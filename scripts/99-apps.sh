@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 99-apps.sh - Common Applications (FZF Menu + Batch Yay + Flatpak)
+# 99-apps.sh - Common Applications (FZF Menu + Split Repo/AUR + Retry Logic)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,7 +44,8 @@ else
 fi
 LIST_FILE="$PARENT_DIR/$LIST_FILENAME"
 
-YAY_APPS=()
+REPO_APPS=()
+AUR_APPS=()
 FLATPAK_APPS=()
 FAILED_PACKAGES=()
 
@@ -58,7 +59,6 @@ fi
 # 1.1 Countdown Logic
 # ---------------------------------------------------------
 
-# Check if list is empty
 if ! grep -q -vE "^\s*#|^\s*$" "$LIST_FILE"; then
     warn "App list is empty. Skipping."
     trap - INT
@@ -68,7 +68,6 @@ fi
 echo ""
 echo -e "   Selected List: ${BOLD}$LIST_FILENAME${NC}"
 echo -e "   ${H_YELLOW}>>> Default installation will start in 60 seconds.${NC}"
-# 加上你想要的红色网络警告
 echo -e "   ${H_RED}${BOLD}>>> WARNING: AUR packages may fail due to unstable network connection!${NC}"
 echo -e "   ${H_CYAN}>>> Press ANY KEY to customize selection...${NC}"
 
@@ -87,11 +86,6 @@ if [ "$USER_INTERVENTION" = true ]; then
     # --- Interactive FZF ---
     clear
     echo -e "\n  Loading application list..."
-    
-    # 逻辑修改：
-    # 1. sed -E 's/[[:space:]]+#/\t#/' : 只是把 # 前面的空格换成 TAB，不做其他修改
-    # 2. 这样左侧列表就会显示完整的 "AUR:package" 或 "flatpak:package"
-    # 3. 预览窗口只显示 TAB 后面的描述
     
     SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
         sed -E 's/[[:space:]]+#/\t#/' | \
@@ -128,9 +122,6 @@ if [ "$USER_INTERVENTION" = true ]; then
 else
     # --- Auto Confirm (Timeout) ---
     log "Timeout reached (60s). Auto-confirming ALL applications."
-    # 逻辑修改：
-    # 这里我们模拟 FZF 的输出格式 (行内容 <TAB> # 描述)，
-    # 这样后续的处理逻辑可以共用，不需要写两套代码。
     SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed -E 's/[[:space:]]+#/\t#/')
 fi
 
@@ -139,85 +130,120 @@ fi
 # ------------------------------------------------------------------------------
 log "Processing selection..."
 
-# Loop through the output. 
-# 现在的格式是: "AUR:linuxqq <TAB> # Description" 或 "steam <TAB> # desc"
 while IFS= read -r line; do
-    # 1. 提取包名部分 (包含前缀)
+    # 1. Extract Name (Before TAB)
     raw_pkg=$(echo "$line" | cut -f1 -d$'\t' | xargs)
     
     [[ -z "$raw_pkg" ]] && continue
 
-    # 2. 根据前缀分类并清洗
+    # 2. Categorize: Repo / AUR / Flatpak
     if [[ "$raw_pkg" == flatpak:* ]]; then
-        # 去掉 flatpak: 前缀
         clean_name="${raw_pkg#flatpak:}"
         FLATPAK_APPS+=("$clean_name")
-    else
-        # 去掉 AUR: 前缀 (Yay 同时支持 Repo 和 AUR，所以只需去前缀)
+    elif [[ "$raw_pkg" == AUR:* ]]; then
         clean_name="${raw_pkg#AUR:}"
-        YAY_APPS+=("$clean_name")
+        AUR_APPS+=("$clean_name")
+    else
+        # No prefix -> Assume Repo Package
+        # Note: If your list uses plain names for AUR packages without prefix, 
+        # they will go here and might fail in batch install. 
+        # Ensure AUR packages in list have 'AUR:' prefix for this logic to work perfectly.
+        REPO_APPS+=("$raw_pkg")
     fi
 done <<< "$SELECTED_RAW"
 
-info_kv "Scheduled" "Yay/AUR: ${#YAY_APPS[@]}" "Flatpak: ${#FLATPAK_APPS[@]}"
+info_kv "Scheduled" "Repo: ${#REPO_APPS[@]}" "AUR: ${#AUR_APPS[@]}" "Flatpak: ${#FLATPAK_APPS[@]}"
 
 # ------------------------------------------------------------------------------
 # 3. Install Applications
 # ------------------------------------------------------------------------------
 
-# --- A. Install Yay Apps (BATCH MODE) ---
-if [ ${#YAY_APPS[@]} -gt 0 ]; then
-    section "Step 1/2" "System Packages (Yay - Batch)"
+# --- A. Install Repo Apps (BATCH MODE) ---
+if [ ${#REPO_APPS[@]} -gt 0 ]; then
+    section "Step 1/3" "Official Repository Packages (Batch)"
     
-    # 1. Filter out already installed packages
-    YAY_INSTALL_QUEUE=()
-    for pkg in "${YAY_APPS[@]}"; do
+    REPO_QUEUE=()
+    for pkg in "${REPO_APPS[@]}"; do
         if pacman -Qi "$pkg" &>/dev/null; then
             log "Skipping '$pkg' (Already installed)."
         else
-            YAY_INSTALL_QUEUE+=("$pkg")
+            REPO_QUEUE+=("$pkg")
         fi
     done
 
-    # 2. Execute Batch Install if queue is not empty
-    if [ ${#YAY_INSTALL_QUEUE[@]} -gt 0 ]; then
-        # Configure NOPASSWD for seamless batch install
+    if [ ${#REPO_QUEUE[@]} -gt 0 ]; then
         SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_apps"
         echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
         chmod 440 "$SUDO_TEMP_FILE"
         
-        BATCH_LIST="${YAY_INSTALL_QUEUE[*]}"
-        info_kv "Installing" "${#YAY_INSTALL_QUEUE[@]} packages via Yay"
+        BATCH_LIST="${REPO_QUEUE[*]}"
+        info_kv "Installing" "${#REPO_QUEUE[@]} packages via Pacman/Yay"
         
-        # Run Yay Batch
+        # Use yay for repo packages too, it handles sudo internally well
         if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-            error "Yay batch installation failed."
-            # Since it's batch, if it fails, we mark the whole queue as potentially failed
-            for pkg in "${YAY_INSTALL_QUEUE[@]}"; do
-                FAILED_PACKAGES+=("yay-batch-fail:$pkg")
+            error "Batch installation failed. Some repo packages might be missing."
+            for pkg in "${REPO_QUEUE[@]}"; do
+                FAILED_PACKAGES+=("repo:$pkg")
             done
         else
-            success "Yay batch installation completed."
+            success "Repo batch installation completed."
         fi
         
         rm -f "$SUDO_TEMP_FILE"
     else
-        log "All Yay packages are already installed."
+        log "All Repo packages are already installed."
     fi
 fi
 
-# --- B. Install Flatpak Apps (INDIVIDUAL MODE) ---
+# --- B. Install AUR Apps (INDIVIDUAL MODE + RETRY) ---
+if [ ${#AUR_APPS[@]} -gt 0 ]; then
+    section "Step 2/3" "AUR Packages (Sequential + Retry)"
+    
+    for app in "${AUR_APPS[@]}"; do
+        # 1. Check if installed
+        if pacman -Qi "$app" &>/dev/null; then
+            log "Skipping '$app' (Already installed)."
+            continue
+        fi
+
+        # 2. Install with Retry Logic
+        log "Installing AUR: $app ..."
+        install_success=false
+        max_retries=2
+        
+        for (( i=0; i<=max_retries; i++ )); do
+            if [ $i -gt 0 ]; then
+                warn "Retry $i/$max_retries for '$app' in 3 seconds..."
+                sleep 3
+            fi
+            
+            # Using runuser to run yay as target user
+            if runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$app"; then
+                install_success=true
+                success "Installed $app"
+                break
+            else
+                warn "Attempt $((i+1)) failed for $app"
+            fi
+        done
+
+        if [ "$install_success" = false ]; then
+            error "Failed to install $app after $((max_retries+1)) attempts."
+            FAILED_PACKAGES+=("aur:$app")
+        fi
+    done
+fi
+
+# --- C. Install Flatpak Apps (INDIVIDUAL MODE) ---
 if [ ${#FLATPAK_APPS[@]} -gt 0 ]; then
-    section "Step 2/2" "Flatpak Packages (Individual)"
+    section "Step 3/3" "Flatpak Packages (Individual)"
     
     for app in "${FLATPAK_APPS[@]}"; do
-        # 1. Check if installed
         if flatpak info "$app" &>/dev/null; then
             log "Skipping '$app' (Already installed)."
             continue
         fi
 
-        # 2. Install Individually
         log "Installing Flatpak: $app ..."
         if ! exe flatpak install -y flathub "$app"; then
             error "Failed to install: $app"
@@ -237,15 +263,20 @@ if [ ${#FAILED_PACKAGES[@]} -gt 0 ]; then
     
     if [ ! -d "$DOCS_DIR" ]; then runuser -u "$TARGET_USER" -- mkdir -p "$DOCS_DIR"; fi
     
-    # Append to report
-    echo -e "\n--- Phase 5 (Common Apps - $DESKTOP_ENV) Failures [$(date)] ---" >> "$REPORT_FILE"
+    # Append header and list to report
+    echo -e "\n========================================================" >> "$REPORT_FILE"
+    echo -e " Installation Failure Report - $(date)" >> "$REPORT_FILE"
+    echo -e "========================================================" >> "$REPORT_FILE"
     printf "%s\n" "${FAILED_PACKAGES[@]}" >> "$REPORT_FILE"
+    
     chown "$TARGET_USER:$TARGET_USER" "$REPORT_FILE"
     
-    warn "Some applications failed to install. List saved to:"
+    echo ""
+    warn "Some applications failed to install."
+    warn "A report has been saved to:"
     echo -e "   ${BOLD}$REPORT_FILE${NC}"
 else
-    success "All scheduled applications processed."
+    success "All scheduled applications processed successfully."
 fi
 
 # ------------------------------------------------------------------------------
