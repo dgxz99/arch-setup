@@ -464,8 +464,26 @@ rm -rf "$TEMP_DIR"
 # STEP 8: Hardware Tools
 # ==============================================================================
 section "Step 7/9" "Hardware"
-gpasswd -a "$TARGET_USER" i2c
-systemctl enable --now swayosd-libinput-backend.service > /dev/null 2>&1
+
+# 1. DDCutil 配置 (如果存在 ddcutil 或 ddcutil-service)
+# ddcutil 需要用户在 i2c 组才能通过硬件控制显示器亮度
+if pacman -Q ddcutil-service &>/dev/null || pacman -Q ddcutil &>/dev/null; then
+    log "Detected ddcutil/ddcutil-service. Configuring i2c group..."
+    gpasswd -a "$TARGET_USER" i2c
+    
+    # 可选：为了立即生效，有时需要加载 i2c-dev 模块
+    if ! lsmod | grep -q i2c_dev; then
+        echo "i2c-dev" > /etc/modules-load.d/i2c-dev.conf
+    fi
+fi
+
+# 2. SwayOSD 配置 (如果存在 swayosd)
+# 这是一个独立组件，不应该依赖 ddcutil 的检测结果
+if pacman -Q swayosd &>/dev/null; then
+    log "Detected swayosd. Enabling backend service..."
+    systemctl enable --now swayosd-libinput-backend.service > /dev/null 2>&1
+fi
+
 success "Tools configured."
 
 # ==============================================================================
