@@ -1,5 +1,4 @@
 # --- Core Applications ---
-kitty                                    # Terminal Emulator (GPU Accelerated)
 neovim                                   # Hyperextensible Vim-based text editor
 imv                                      # Image Viewer for Wayland
 fish                                     # Friendly Interactive Shell

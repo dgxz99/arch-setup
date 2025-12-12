@@ -1,24 +1,37 @@
-mission-center
-gwenview
-kcalc
-pacman-contrib
-gnome-disk-utility
-dosfstools
-ntfs-3g
-exfatprogs
-f2fs-tools
-udftools
-xfsprogs
-baobab
-haruna
-ksystemlog 
-btop
-linuxqq-appimage
-wechat-appimage
-steam
+# --- KDE System Utilities ---
+mission-center                           # System Monitor (Windows-Task-Manager style)
+gwenview                                 # Image Viewer (KDE Native)
+kcalc                                    # Calculator (KDE Native)
+ksystemlog                               # System Log Viewer
+pacman-contrib                           # Pacman utilities (paccache, checkupdates)
+btop                                     # Resource Monitor (TUI)
 
+# --- Disk & Filesystem Tools ---
+gnome-disk-utility                       # Disk Management Utility (Disks)
+baobab                                   # Disk Usage Analyzer
+dosfstools                               # Tools for FAT12/16/32 filesystems
+ntfs-3g                                  # NTFS filesystem driver
+exfatprogs                               # exFAT filesystem utilities
+f2fs-tools                               # Tools for Flash-Friendly File System
+udftools                                 # Tools for UDF filesystems
+xfsprogs                                 # Tools for XFS filesystems
 
-flatpak:it.mijorus.gearlever
-flatpak:com.obsproject.Studio
-flatpak:com.github.wwmm.easyeffects
-flatpak:io.github.ilya_zlobintsev.LACT
+# --- Media & Gaming ---
+haruna                                   # Modern Video Player (MPV frontend for KDE)
+steam                                    # Gaming Platform (Valve)
+lutris                                   # Open Source Gaming Platform (Wine/Proton manager)
+
+# --- AUR Packages (Social) ---
+AUR:linuxqq-appimage                     # Tencent QQ (AppImage)
+AUR:wechat-appimage                      # WeChat (AppImage)
+AUR:ttf-jetbrains-maple-mono-nf-xx-xx    # Maple Mono NF font
+
+# --- Flatpak Packages (Productivity & Media) ---
+flatpak:it.mijorus.gearlever             # AppImage Manager (Integrate AppImages to menu)
+flatpak:com.obsproject.Studio            # OBS Studio (Streaming & Recording)
+flatpak:com.github.wwmm.easyeffects      # Audio Effects for PipeWire (Equalizer/Noise reduction)
+flatpak:io.github.ilya_zlobintsev.LACT   # AMD GPU Control Panel (Overclocking/Fan control)
+flatpak:com.github.unrud.VideoDownloader # Video Downloader (YouTube/Bilibili)
+flatpak:io.gitlab.theevilskeleton.Upscaler # AI Image Upscaler (Enhance low-res images)
+flatpak:com.github.huluti.Curtail        # Image Compressor (Reduce PNG/JPG size)
+flatpak:io.gitlab.adhami3310.Footage     # Simple Video Trimmer & Compressor
