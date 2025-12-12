@@ -219,8 +219,8 @@ verify_installation() {
 if [ -f "$LIST_FILE" ]; then
     log "Launching Archinstall-style Package Selection..."
     
-   # -------------------------------------------------------------
-    # FZF TUI Logic (Clean Layout: Stripped Whitespace & Hidden Delimiters)
+# -------------------------------------------------------------
+    # FZF TUI Logic (Clean Layout & Correct Color Syntax)
     # -------------------------------------------------------------
     
     # 1. 进场清屏
@@ -228,10 +228,10 @@ if [ -f "$LIST_FILE" ]; then
     echo -e "\n  Loading package list..."
 
     # 2. 启动 FZF
-    # 修改核心逻辑:
-    #   sed -E 's/[[:space:]]+#/\t#/' : 将 "空格+井号" 替换为 "Tab+井号"
-    #   --delimiter=$'\t'             : 告诉 fzf 用 Tab 键作为左右分割线
-    #   --with-nth=1                  : 左侧列表只显示 Tab 键左边的内容 (即纯包名)
+    # 修正说明: 
+    #   1. 颜色语法改为 header:yellow:bold (冒号分隔)
+    #   2. marker:green:bold
+    #   3. pointer:cyan:bold
     
     SELECTED_LINES=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
         sed -E 's/[[:space:]]+#/\t#/' | \
@@ -251,11 +251,11 @@ if [ -f "$LIST_FILE" ]; then
             --preview "echo {} | cut -f2 -d$'\t' | sed 's/^# //'" \
             --preview-window=right:50%:wrap:border-left \
             --color=dark \
-            --color=fg+:bright-white,bg+:black \
+            --color=fg+:white,bg+:black \
             --color=hl:blue,hl+:blue:bold \
-            --color=header:bright-yellow+bold \
+            --color=header:yellow:bold \
             --color=info:magenta \
-            --color=prompt:cyan,pointer:bright-cyan,marker:bright-green+bold \
+            --color=prompt:cyan,pointer:cyan:bold,marker:green:bold \
             --color=spinner:yellow)
     
     # 3. 出场清屏
@@ -267,8 +267,6 @@ if [ -f "$LIST_FILE" ]; then
         PACKAGE_ARRAY=()
     else
         # 4. 解析结果
-        # 现在的行格式是: "包名<TAB># 描述"
-        # 我们只需要 <TAB> 前面的部分
         PACKAGE_ARRAY=()
         while IFS= read -r line; do
             # 提取 Tab 键前面的内容
