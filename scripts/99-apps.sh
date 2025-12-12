@@ -55,48 +55,11 @@ if [ ! -f "$LIST_FILE" ]; then
 fi
 
 # ---------------------------------------------------------
-# 1.1 Pre-process List & Countdown
+# 1.1 Countdown Logic
 # ---------------------------------------------------------
 
-# Generate a clean list for FZF logic
-# Logic:
-# 1. Split line by '#'
-# 2. Left part: Check prefix (flatpak:/AUR:) -> Determine Type -> Strip Prefix -> Clean Name
-# 3. Right part: Clean Description
-# 4. Output: "CleanName <TAB> # [Type] Description"
-mapfile -t PARSED_LIST < <(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | awk -F'#' '{
-    # $1 is package part, $2 is description part
-    pkg_part = $1
-    desc_part = $2
-    
-    # Trim whitespace
-    gsub(/[ \t]+$/, "", pkg_part)
-    gsub(/^[ \t]+/, "", pkg_part)
-    if (desc_part != "") {
-        gsub(/^[ \t]+|[ \t]+$/, "", desc_part)
-    }
-
-    # Identify Type & Strip Prefix
-    if (pkg_part ~ /^flatpak:/) {
-        sub(/^flatpak:/, "", pkg_part)
-        type_tag = "[Flatpak]"
-    } else if (pkg_part ~ /^AUR:/) {
-        sub(/^AUR:/, "", pkg_part)
-        type_tag = "[AUR]"
-    } else {
-        type_tag = "[Repo]"
-    }
-
-    # Format output for FZF
-    # If description exists, append it; otherwise just show type
-    if (desc_part != "") {
-        printf "%s\t# %s %s\n", pkg_part, type_tag, desc_part
-    } else {
-        printf "%s\t# %s\n", pkg_part, type_tag
-    }
-}')
-
-if [ ${#PARSED_LIST[@]} -eq 0 ]; then
+# Check if list is empty
+if ! grep -q -vE "^\s*#|^\s*$" "$LIST_FILE"; then
     warn "App list is empty. Skipping."
     trap - INT
     exit 0
@@ -105,6 +68,8 @@ fi
 echo ""
 echo -e "   Selected List: ${BOLD}$LIST_FILENAME${NC}"
 echo -e "   ${H_YELLOW}>>> Default installation will start in 60 seconds.${NC}"
+# 加上你想要的红色网络警告
+echo -e "   ${H_RED}${BOLD}>>> WARNING: AUR packages may fail due to unstable network connection!${NC}"
 echo -e "   ${H_CYAN}>>> Press ANY KEY to customize selection...${NC}"
 
 if read -t 60 -n 1 -s -r; then
@@ -123,9 +88,13 @@ if [ "$USER_INTERVENTION" = true ]; then
     clear
     echo -e "\n  Loading application list..."
     
-    # Using printf to feed array safely into fzf
-    # Note: PARSED_LIST already contains Tabs from awk, so we don't need extra sed here
-    SELECTED_RAW=$(printf "%s\n" "${PARSED_LIST[@]}" | \
+    # 逻辑修改：
+    # 1. sed -E 's/[[:space:]]+#/\t#/' : 只是把 # 前面的空格换成 TAB，不做其他修改
+    # 2. 这样左侧列表就会显示完整的 "AUR:package" 或 "flatpak:package"
+    # 3. 预览窗口只显示 TAB 后面的描述
+    
+    SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
+        sed -E 's/[[:space:]]+#/\t#/' | \
         fzf --multi \
             --layout=reverse \
             --border \
@@ -158,30 +127,35 @@ if [ "$USER_INTERVENTION" = true ]; then
     fi
 else
     # --- Auto Confirm (Timeout) ---
-    log "Timeout reached. Auto-confirming ALL applications."
-    SELECTED_RAW=$(printf "%s\n" "${PARSED_LIST[@]}")
+    log "Timeout reached (60s). Auto-confirming ALL applications."
+    # 逻辑修改：
+    # 这里我们模拟 FZF 的输出格式 (行内容 <TAB> # 描述)，
+    # 这样后续的处理逻辑可以共用，不需要写两套代码。
+    SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed -E 's/[[:space:]]+#/\t#/')
 fi
 
 # ------------------------------------------------------------------------------
-# 2. Categorize Selection
+# 2. Categorize Selection & Strip Prefixes
 # ------------------------------------------------------------------------------
 log "Processing selection..."
 
-# Loop through the raw FZF output (format: "Name <TAB> # [Type] Description")
+# Loop through the output. 
+# 现在的格式是: "AUR:linuxqq <TAB> # Description" 或 "steam <TAB> # desc"
 while IFS= read -r line; do
-    # Extract Name (Before TAB)
-    pkg_name=$(echo "$line" | cut -f1 -d$'\t' | xargs)
-    # Extract Type info (From description part, used to identify flatpak)
-    # The description part looks like: "# [Flatpak] Some description"
-    pkg_meta=$(echo "$line" | cut -f2 -d$'\t')
+    # 1. 提取包名部分 (包含前缀)
+    raw_pkg=$(echo "$line" | cut -f1 -d$'\t' | xargs)
     
-    [[ -z "$pkg_name" ]] && continue
+    [[ -z "$raw_pkg" ]] && continue
 
-    if [[ "$pkg_meta" == *"[Flatpak]"* ]]; then
-        FLATPAK_APPS+=("$pkg_name")
+    # 2. 根据前缀分类并清洗
+    if [[ "$raw_pkg" == flatpak:* ]]; then
+        # 去掉 flatpak: 前缀
+        clean_name="${raw_pkg#flatpak:}"
+        FLATPAK_APPS+=("$clean_name")
     else
-        # Both [Repo] and [AUR] go to Yay
-        YAY_APPS+=("$pkg_name")
+        # 去掉 AUR: 前缀 (Yay 同时支持 Repo 和 AUR，所以只需去前缀)
+        clean_name="${raw_pkg#AUR:}"
+        YAY_APPS+=("$clean_name")
     fi
 done <<< "$SELECTED_RAW"
 
@@ -293,6 +267,14 @@ if [ -f "$NATIVE_DESKTOP" ]; then
     else
         log "Native Steam already patched."
     fi
+fi
+
+# Method 2: Flatpak Steam
+if flatpak list | grep -q "com.valvesoftware.Steam"; then
+    log "Checking Flatpak Steam..."
+    exe flatpak override --env=LANG=zh_CN.UTF-8 com.valvesoftware.Steam
+    success "Applied Flatpak Steam override."
+    STEAM_desktop_modified=true
 fi
 
 if [ "$STEAM_desktop_modified" = false ]; then
