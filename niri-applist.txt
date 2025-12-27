@@ -63,3 +63,4 @@ AUR:waypaper                             # GUI wallpaper setter (Frontend for sw
 AUR:ddcutil-service                      # Monitor hardware brightness control service
 AUR:niriswitcher                         # Window switcher for Niri
 AUR:ttf-jetbrains-maple-mono-nf-xx-xx    # Maple Mono NF font
+AUR:ttf-lxgw-wenkai-screen               # xia2 wu4 wen2 kai3 
