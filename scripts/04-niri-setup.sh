@@ -469,8 +469,7 @@ if command -v firefox &>/dev/null; then
         
         log "Initializing Firefox Profile..."
         # 1. 启动 Headless Firefox 以生成配置文件夹 (User Mode)
-        # 使用 timeout 防止进程卡死，确保它运行足够长时间以生成文件
-        as_user firefox --headless &
+        as_user firefox --headless >/dev/null 2>&1 &
         sleep 3
         # 确保进程已完全终止
         pkill firefox >/dev/null
@@ -492,7 +491,6 @@ if command -v firefox &>/dev/null; then
 
             log "Injecting UI settings..."
             # 3. 注入配置片段和自定义设置
-            # 使用 bash -c 确保重定向操作符 >> 是以普通用户权限执行的
             as_user bash -c "cat '$FF_SNIPPET' >> '$USER_JS'"
             
             # 注入垂直标签页等特定设置
