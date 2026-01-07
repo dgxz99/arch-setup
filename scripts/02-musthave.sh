@@ -54,7 +54,7 @@ if [ "$ROOT_FSTYPE" == "btrfs" ]; then
                 success "Symlink fix applied."
             fi
         fi
-        exe pacman -Syu --noconfirm --needed grub-btrfs inotify-tools
+        exe pacman -S --noconfirm --needed grub-btrfs inotify-tools
         exe systemctl enable --now grub-btrfsd
 
         if ! grep -q "grub-btrfs-overlayfs" /etc/mkinitcpio.conf; then
@@ -76,10 +76,10 @@ fi
 section "Step 2/8" "Audio & Video"
 
 log "Installing firmware..."
-exe pacman -Syu --noconfirm --needed sof-firmware alsa-ucm-conf alsa-firmware
+exe pacman -S --noconfirm --needed sof-firmware alsa-ucm-conf alsa-firmware
 
 log "Installing Pipewire stack..."
-exe pacman -Syu --noconfirm --needed pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
+exe pacman -S --noconfirm --needed pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
 
 exe systemctl --global enable pipewire pipewire-pulse wireplumber
 success "Audio setup complete."
@@ -106,7 +106,7 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 4/8" "Input Method (Fcitx5)"
 
-exe pacman -Syu --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-pinyin-git fcitx5-mozc
+exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-pinyin-git fcitx5-mozc
 
 log "Configuring Rime defaults..."
 TARGET_DIR="/etc/skel/.local/share/fcitx5/rime"
@@ -124,7 +124,7 @@ section "Step 5/8" "Bluetooth"
 
 # Ensure detection tools are present
 log "Detecting Bluetooth hardware..."
-exe pacman -Syu --noconfirm --needed usbutils pciutils
+exe pacman -S --noconfirm --needed usbutils pciutils
 
 BT_FOUND=false
 
@@ -139,7 +139,7 @@ if [ "$BT_FOUND" = true ]; then
     info_kv "Hardware" "Detected"
 
     log "Installing Bluez "
-    exe pacman -Syu --noconfirm --needed bluez
+    exe pacman -S --noconfirm --needed bluez
 
     exe systemctl enable --now bluetooth
     success "Bluetooth service enabled."
@@ -153,7 +153,7 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 6/8" "Power Management"
 
-exe pacman -Syu --noconfirm --needed power-profiles-daemon
+exe pacman -S --noconfirm --needed power-profiles-daemon
 exe systemctl enable --now power-profiles-daemon
 success "Power profiles daemon enabled."
 
@@ -162,7 +162,7 @@ success "Power profiles daemon enabled."
 # ------------------------------------------------------------------------------
 section "Step 7/8" "Fastfetch"
 
-exe pacman -Syu --noconfirm --needed fastfetch
+exe pacman -S --noconfirm --needed fastfetch
 success "Fastfetch installed."
 
 log "Module 02 completed."

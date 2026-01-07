@@ -184,7 +184,7 @@ if [ ${#REPO_APPS[@]} -gt 0 ]; then
         BATCH_LIST="${REPO_QUEUE[*]}"
         info_kv "Installing" "${#REPO_QUEUE[@]} packages via Pacman/Yay"
         
-        if ! exe as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
+        if ! exe as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
             error "Batch installation failed. Some repo packages might be missing."
             for pkg in "${REPO_QUEUE[@]}"; do
                 FAILED_PACKAGES+=("repo:$pkg")

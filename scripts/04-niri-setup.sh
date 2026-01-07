@@ -91,7 +91,7 @@ ensure_package_installed() {
     fi
 
     # Try installation
-    if as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
+    if as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
       install_success=true
       break
     else
@@ -171,7 +171,7 @@ fi
 # ==============================================================================
 section "Step 1/9" "Core Components"
 PKGS="niri xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome"
-exe pacman -Syu --noconfirm --needed $PKGS
+exe pacman -S --noconfirm --needed $PKGS
 
 log "Configuring Firefox Policies..."
 POL_DIR="/etc/firefox/policies"
@@ -306,7 +306,7 @@ if [ -f "$LIST_FILE" ]; then
     # 1. Batch Install Repo Packages
     if [ ${#BATCH_LIST[@]} -gt 0 ]; then
       log "Phase 1: Batch Installing Repo Packages..."
-      as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "${BATCH_LIST[@]}" || true
+      as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None "${BATCH_LIST[@]}" || true
 
       # Verify Each
       for pkg in "${BATCH_LIST[@]}"; do
