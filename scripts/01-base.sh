@@ -74,15 +74,15 @@ exe pacman -S --noconfirm --needed terminus-font
 
 log "Setting font for current session..."
 # 设置当前会话立即生效（防止用户在安装过程中还需要眯着眼看屏幕）
-exe setfont ter-v24n
+exe setfont ter-v28n
 
 log "Configuring permanent vconsole font..."
 # 写入 /etc/vconsole.conf 以永久生效
 # 逻辑：如果文件中已有 FONT= 定义，则用 sed 替换；如果没有，则追加。
 if [ -f /etc/vconsole.conf ] && grep -q "^FONT=" /etc/vconsole.conf; then
-    exe sed -i 's/^FONT=.*/FONT=ter-v24n/' /etc/vconsole.conf
+    exe sed -i 's/^FONT=.*/FONT=ter-v28n/' /etc/vconsole.conf
 else
-    echo "FONT=ter-v24n" >> /etc/vconsole.conf
+    echo "FONT=ter-v28n" >> /etc/vconsole.conf
 fi
 
 log "Restarting systemd-vconsole-setup..."
