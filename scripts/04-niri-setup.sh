@@ -18,6 +18,7 @@ check_root
 
 
 # 2. Critical Failure Handler (The "Big Red Box")
+# 2. Critical Failure Handler (The "Big Red Box")
 critical_failure_handler() {
   local failed_reason="$1"
   trap - ERR
@@ -29,17 +30,19 @@ critical_failure_handler() {
   echo -e "\033[0;31m#                                                              #\033[0m"
   echo -e "\033[0;31m#   Reason: $failed_reason\033[0m"
   echo -e "\033[0;31m#                                                              #\033[0m"
-  echo -e "\033[0;31m#   OPTIONS(Choose one):                                       #\033[0m"
-  echo -e "\033[0;31m#   1. Restore snapshot                                        #\033[0m"
-  echo -e "\033[0;31m#   2. Fix manually and re-run: sudo bash install.sh           #\033[0m"
+  echo -e "\033[0;31m#   OPTIONS:                                                   #\033[0m"
+  echo -e "\033[0;31m#   1. Restore snapshot (Undo changes & Exit)                  #\033[0m"
+  echo -e "\033[0;31m#   2. Retry / Re-run script                                   #\033[0m"
+  echo -e "\033[0;31m#   3. Abort (Exit immediately)                                #\033[0m"
   echo -e "\033[0;31m#                                                              #\033[0m"
   echo -e "\033[0;31m################################################################\033[0m"
   echo ""
 
   while true; do
-    read -p "Execute System Recovery (Restore Snapshot)? [y/n]: " -r choice
+    read -p "Select an option [1-3]: " -r choice
     case "$choice" in
-    [yY]*)
+    1)
+      # Option 1: Restore Snapshot
       if [ -f "$UNDO_SCRIPT" ]; then
         warn "Executing recovery script..."
         bash "$UNDO_SCRIPT"
@@ -49,13 +52,23 @@ critical_failure_handler() {
         exit 1
       fi
       ;;
-    [nN]*)
-      warn "User chose NOT to recover."
+    2)
+      # Option 2: Re-run Script
+      warn "Restarting installation script..."
+      echo "-----------------------------------------------------"
+      sleep 1
+      exec "$0" "$@"
+      ;;
+    3)
+      # Option 3: Exit
+      warn "User chose to abort."
       warn "Please fix the issue manually before re-running."
       error "Installation aborted."
       exit 1
       ;;
-    *) echo "Invalid input. Please enter 'y' or 'n'." ;;
+    *) 
+      echo "Invalid input. Please enter 1, 2, or 3." 
+      ;;
     esac
   done
 }
