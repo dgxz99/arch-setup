@@ -227,7 +227,7 @@ EXTENSION_LIST=(
     "appindicatorsupport@rgcjonas.gmail.com"
 )
 log "Downloading extensions..."
-sudo -u $TARGET_USER gnome-extensions-cli install ${EXTENSION_LIST[@]} 2>/dev/null
+sudo -u $TARGET_USER gnome-extensions-cli install "${EXTENSION_LIST[@]}" 2>/dev/null
 
 section "Step 5.2" "Enable GNOME Extensions"
 sudo -u "$TARGET_USER" bash <<EOF
