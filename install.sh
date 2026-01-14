@@ -91,8 +91,8 @@ select_desktop() {
         "Shorin's Niri |niri"
         "KDE Plasma |kde"
         "GNOME |gnome"
-        "Quickshell--illogical-impulse(end4) |end4"
-        "Quickshell--DankMaterialShell(DMS)  |dms"
+        "Quickshell(Hyprland)--illogical-impulse(end4) |end4"
+        "Quickshell(Niri or Hyprland)--DankMaterialShell(DMS)  |dms"
     )
     
     # 2. 绘制菜单 (半开放式风格)
