@@ -76,6 +76,7 @@ section "Config" "dms autostart"
 
 # dms.service 路径
 DMS_AUTOSTART_LINK="$HOME_DIR/.config/systemd/user/graphical-session.target.wants/dms.service"
+DMS_NIRI_CONFIG_FILE="$HOME_DIR/.config/niri/config.kdl"
 # 删除dms自己的服务链接（如果有的话）
 if [ -L "$DMS_AUTOSTART_LINK" ]; then
     log "detect dms systemd service enabled, disabling ...." 
@@ -96,9 +97,9 @@ fi
 # 修改niri配置文件设置dms自动启动
 if [ $DMS_NIRI_INSTALLED = true ]; then
 
-    if ! grep -E -q "^[[:space:]]*spawn-at-startup.*dms.*run" "$HOME_DIR/.config/niri/config.kdl"; then
+    if ! grep -E -q "^[[:space:]]*spawn-at-startup.*dms.*run" "$DMS_NIRI_CONFIG_FILE"; then
         log "enabling dms autostart in niri config.kdl..." 
-        echo 'spawn-at-startup "dms" "run"' >> "$HOME_DIR/.config/niri/config.kdl"
+        echo 'spawn-at-startup "dms" "run"' >> "$DMS_NIRI_CONFIG_FILE"
     else
         log "dms autostart already exists in niri config.kdl, skipping."
     fi
@@ -113,30 +114,50 @@ fi
 # ==============================================================================
 #  fcitx5 configuration and autostart 
 # ==============================================================================
-if [ $DMS_NIRI_INSTALLED = true ]; then
 
-    if ! grep -q "fcitx5" "$HOME_DIR/.config/niri/config.kdl"; then
-        log "enabling fcitx5 autostart in niri config.kdl..." 
-        echo 'spawn-at-startup "fcitx5" "-d"' >> "$HOME_DIR/.config/niri/config.kdl"
-        cat << EOT >> "$HOME_DIR/.config/niri/config.kdl"
+
+if [ "$DMS_NIRI_INSTALLED" = true ]; then
+
+    # fcitx5 自动启动
+    if ! grep -q "fcitx5" "$DMS_NIRI_CONFIG_FILE"; then
+        log "enabling fcitx5 autostart in niri config.kdl..."
+        echo 'spawn-at-startup "fcitx5" "-d"' >> "$DMS_NIRI_CONFIG_FILE"
+    else
+        log "fcitx5 autostart already exists, skipping."
+    fi
+
+    # 处理环境变量
+    # 这里的 grep 检查是否存在 environment 块的开头
+    if grep -q "^[[:space:]]*environment[[:space:]]*{" "$DMS_NIRI_CONFIG_FILE"; then
+        log "Existing environment block found. Injecting fcitx variables..."
+        
+        # 检查是否已经写过 XMODIFIERS，防止重复插入
+        if ! grep -q 'XMODIFIERS "@im=fcitx"' "$DMS_NIRI_CONFIG_FILE"; then
+            # 使用 sed 在 'environment {' 这一行后面 (a)ppend 插入两行配置
+            # \t 代表缩进，\n 代表换行
+            sed -i '/^[[:space:]]*environment[[:space:]]*{/a \    LC_CTYPE "en_US.UTF-8"\n    XMODIFIERS "@im=fcitx"' "$DMS_NIRI_CONFIG_FILE"
+        else
+            log "Environment variables for fcitx already exist, skipping."
+        fi
+        
+    else
+        log "No environment block found. Appending new block..."
+        # 如果没有 environment 块，直接追加到底部
+        cat << EOT >> "$DMS_NIRI_CONFIG_FILE"
 
 environment {
     LC_CTYPE "en_US.UTF-8"
     XMODIFIERS "@im=fcitx"
 }
-
 EOT
-    cp -rf $PARENT_DIR/quickshell-dotfiles/* "$HOME_DIR/.config/"
-    chown -R "$TARGET_USER" "$HOME_DIR/.config" 
-    else
-        log "fcitx5 autostart already exists in niri config.kdl, skipping."
     fi
 
-# 修改hyprland的配置文件设置dms自动启动
-elif [ $DMS_HYPR_INSTALLED = true ]; then
+    # 3. 复制其他配置
+    cp -rf "$PARENT_DIR/quickshell-dotfiles/"* "$HOME_DIR/.config/"
+    chown -R "$TARGET_USER" "$HOME_DIR/.config"
 
+elif [ "$DMS_HYPR_INSTALLED" = true ]; then
     true
-
 fi
 
 
