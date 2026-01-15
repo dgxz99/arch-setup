@@ -135,7 +135,7 @@ if [ "$DMS_NIRI_INSTALLED" = true ]; then
         if ! grep -q 'XMODIFIERS "@im=fcitx"' "$DMS_NIRI_CONFIG_FILE"; then
             # 使用 sed 在 'environment {' 这一行后面 (a)ppend 插入两行配置
             # \t 代表缩进，\n 代表换行
-            sed -i '/^[[:space:]]*environment[[:space:]]*{/a \    LC_CTYPE "en_US.UTF-8"\n    XMODIFIERS "@im=fcitx"' "$DMS_NIRI_CONFIG_FILE"
+            sed -i '/^[[:space:]]*environment[[:space:]]*{/a \    LC_CTYPE "en_US.UTF-8"\n    XMODIFIERS "@im=fcitx"\n    LANG "zh_CN.UTF-8"' "$DMS_NIRI_CONFIG_FILE"
         else
             log "Environment variables for fcitx already exist, skipping."
         fi
