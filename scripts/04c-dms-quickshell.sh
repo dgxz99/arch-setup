@@ -76,7 +76,7 @@ section "Config" "autostart"
 
 SVC_DIR="$HOME_DIR/.config/systemd/user"
 SVC_FILE="$SVC_DIR/dms-autostart.service"
-LINK="$SVC_DIR/default.target.wants/dms-autostart.service"
+LINK="$SVC_DIR/default.target.wants/niri-autostart.service"
 
 # 确保目录存在
 as_user mkdir -p "$SVC_DIR/default.target.wants"
@@ -106,8 +106,6 @@ StartLimitBurst=3
 ExecStart=/usr/bin/niri-session
 Restart=on-failure
 RestartSec=2
-ExecStartPost=/usr/bin/sleep 0.5
-ExecStartPost=/usr/bin/bash -c "dms run & disown" 
 
 [Install]
 WantedBy=default.target
@@ -117,6 +115,21 @@ EOT
     as_user ln -sf "$SVC_FILE" "$LINK"
     # 确保权限
     chown -R "$TARGET_USER" "$SVC_DIR"
+    
+    # dms自动启动
+    DMS_AUTOSTART_LINK="$HOME_DIR/.config/systemd/user/graphical-session.target.wants/dms.service"
+    if [ -L "$DMS_AUTOSTART_LINK" ]; then
+        log "detect dms systemd service enabled, disabling ...." 
+        rm -f "$DMS_AUTOSTART_LINK"
+    fi
+    
+    if ! grep -E -q "^[[:space:]]*spawn-at-startup.*dms.*run" "$HOME_DIR/.config/niri/config.kdl"; then
+        log "enabling dms autostart in niri config.kdl..." 
+        echo 'spawn-at-startup "dmr" "run"' >> "$HOME_DIR/.config/niri/config.kdl"
+    else
+        log "dms autostart already exists in niri config.kdl, skipping."
+    fi
+
     success "Niri/DMS auto-start enabled with DMS dependency."
 
 # 如果安装了hyprland
@@ -132,8 +145,6 @@ StartLimitBurst=3
 ExecStart=/usr/bin/start-hyprland
 Restart=on-failure
 RestartSec=2
-ExecStartPost=/usr/bin/sleep 0.6
-ExecStartPost=/usr/bin/bash -c "dms run & disown" 
 
 [Install]
 WantedBy=default.target
@@ -147,4 +158,11 @@ EOT
 
 fi
 
+if [ "$SKIP_AUTOLOGIN" = true ] && command -v niri  &>/dev/null; then 
+
+    log "Checking dms autostart..."
+
+elif [ "$SKIP_AUTOLOGIN" = false ] && command -v hyprland &>/dev/null; then
+
+fi
 log "Module 05 completed."
