@@ -119,7 +119,7 @@ if ! grep -q "fcitx5" "$END4_HYPR_CUS_EXEC" 2>/dev/null; then
 
     cat << EOT >> "$END4_HYPR_CUS_EXEC"
 
-exec-once = fcitx5 -d' 
+exec-once = fcitx5 -d
 
 EOT
 else
