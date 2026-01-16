@@ -12,8 +12,8 @@ qt6ct                                    # Qt6 configuration tool
 
 # --- Aesthetics & Theming ---
 breeze                                   # KDE Breeze visual style
-breeze-gtk                               # Breeze GTK theme
-breeze-icons                             # Breeze icon theme
+#breeze-gtk                               # Breeze GTK theme
+#breeze-icons                             # Breeze icon theme
 breeze5                                  # Breeze style for Qt5
 ttf-jetbrains-mono-nerd                  # JetBrains Mono font (Nerd Font patched)
 
