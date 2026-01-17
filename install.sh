@@ -213,7 +213,7 @@ sleep 0.5
 
 section "Pre-Flight" "Update Keyring"
 
-exe pacman -Sy
+exe pacman -Syu
 exe pacman -S --noconfirm archlinux-keyring
 
 # --- Reflector Mirror Update (State Aware) ---
