@@ -100,6 +100,7 @@ section "Install" "Running Caelestia Installer"
 
 # Switch to user, go home, and run the installer
 if as_user sh -c "cd && fish $CAELESTIA_DIR/install.fish --noconfirm"; then
+    chown -R $TARGET_USER $HOME_DIR/.config
     success "Caelestia installation script completed."
 fi
 
