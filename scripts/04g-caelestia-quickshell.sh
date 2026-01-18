@@ -93,7 +93,7 @@ exe pacman -Syu --needed --noconfirm fish
 section "Install" "Running Caelestia Installer"
 
 # Switch to user, go home, and run the installer
-if as_user sh -c "cd && fish $CAELESTIA_DIR/install.sh --noconfirm"; then
+if as_user fish $CAELESTIA_DIR/install.sh --noconfirm; then
     success "Caelestia installation script completed."
 fi
 
