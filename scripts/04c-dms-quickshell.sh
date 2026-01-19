@@ -208,16 +208,8 @@ if [ "$DMS_NIRI_INSTALLED" = true ]; then
     as_user echo "#!/bin/bash" >> "$HOME_DIR/Templates/new.sh"
     chown -R "$TARGET_USER" "$HOME_DIR/Templates"
 # Nautilus Nvidia/Input Fix
-    DESKTOP_FILE="/usr/share/applications/org.gnome.Nautilus.desktop"
-    if [ -f "$DESKTOP_FILE" ]; then
-    GPU_COUNT=$(lspci | grep -E -i "vga|3d" | wc -l)
-    HAS_NVIDIA=$(lspci | grep -E -i "nvidia" | wc -l)
-    ENV_VARS="env GTK_IM_MODULE=fcitx"
-    [ "$GPU_COUNT" -gt 1 ] && [ "$HAS_NVIDIA" -gt 0 ] && ENV_VARS="env GSK_RENDERER=gl GTK_IM_MODULE=fcitx"
-        if ! grep -q "^Exec=$ENV_VARS" "$DESKTOP_FILE"; then
-            exe sed -i "s|^Exec=|Exec=$ENV_VARS |" "$DESKTOP_FILE"
-        fi
-    fi
+    configure_nautilus_user
+
 
 elif [ "$DMS_HYPR_INSTALLED" = true ]; then
     log "dms hyprland detected, skipping file manager "

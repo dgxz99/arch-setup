@@ -415,16 +415,22 @@ if [ "$INSTALL_LAZYVIM" = true ]; then
 fi
 
 # --- hide desktop ---
+# --- hide desktop (User Level Override) ---
 hide_desktop_file() {
-
-  local file="$1"
-
-  if [[ -f "$file" ]] && ! grep -q "^NoDisplay=true$" "$file"; then
-
-    echo "NoDisplay=true" >> "$file"
-
+    local source_file="$1"
+    local filename=$(basename "$source_file")
+    local user_dir="$HOME_DIR/.local/share/applications"
+    local target_file="$user_dir/$filename"
+  mkdir -p "$user_dir"
+  if [[ -f "$source_file" ]]; then
+      cp -fv "$source_file" "$target_file"
+      chown "$TARGET_USER" "$target_file"
+        if grep -q "^NoDisplay=" "$target_file"; then
+            sed -i 's/^NoDisplay=.*/NoDisplay=true/' "$target_file"
+        else
+            echo "NoDisplay=true" >> "$target_file"
+        fi
   fi
-
 }
 section "Config" "Hiding useless .desktop files"
 log "Hiding useless .desktop files"

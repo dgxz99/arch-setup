@@ -256,3 +256,43 @@ select_flathub_mirror() {
 as_user() {
   runuser -u "$TARGET_USER" -- "$@"
 }
+
+
+configure_nautilus_user() {
+  local sys_file="/usr/share/applications/org.gnome.Nautilus.desktop"
+  local user_dir="$HOME_DIR/.local/share/applications"
+  local user_file="$user_dir/org.gnome.Nautilus.desktop"
+
+  # 1. 检查系统文件是否存在
+  if [ -f "$sys_file" ]; then
+    
+    # 2. 显卡检测逻辑
+    local gpu_count=$(lspci | grep -E -i "vga|3d" | wc -l)
+    local has_nvidia=$(lspci | grep -E -i "nvidia" | wc -l)
+
+    # 只有在双显卡且包含 NVIDIA 的情况下才应用修改
+    if [ "$gpu_count" -gt 1 ] && [ "$has_nvidia" -gt 0 ]; then
+      
+      # 定义需要注入的环境变量
+      local env_vars="env GSK_RENDERER=gl GTK_IM_MODULE=fcitx"
+
+      # 3. 准备用户目录并复制文件
+      mkdir -p "$user_dir"
+      cp "$sys_file" "$user_file"
+      chown "$TARGET_USER" "$user_file"
+      # 4. 修改用户目录下的文件
+      sed -i "s|^Exec=|Exec=$env_vars |" "$user_file"
+      
+      log "已创建用户级 Nautilus 配置: $user_file"
+
+      local env_conf_dir="$HOME_DIR/.config/environment.d"
+      if [ ! -f "$env_conf_dir/gsk.conf" ]; then
+          mkdir -p "$env_conf_dir"
+          echo "GSK_RENDERER=gl" > "$env_conf_dir/gsk.conf"
+          log "已添加用户级环境变量配置: $env_conf_dir/gsk.conf"
+      fi
+      
+    fi
+  fi
+  
+}
