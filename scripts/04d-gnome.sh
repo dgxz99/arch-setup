@@ -3,6 +3,23 @@
 # ==============================================================================
 # GNOME Setup Script (04d-gnome.sh)
 # ==============================================================================
+# 模块说明：GNOME 桌面环境安装
+# ------------------------------------------------------------------------------
+# GNOME 是简洁现代的桌面环境，注重用户体验和简化工作流
+#
+# 安装内容：
+#   1. GNOME 核心组件 (gnome-desktop, gnome-control-center, gdm)
+#   2. 常用应用 (Ghostty, Firefox, Nautilus, Celluloid)
+#   3. 快捷键配置 (优化的键盘布局)
+#   4. GNOME Shell 扩展 (平铺窗口、模糊效果等)
+#   5. 输入法配置 (Fcitx5)
+#   6. 点文件部署
+#
+# 特点：
+#   - 自动配置快捷键
+#   - 自动安装并启用 GNOME 扩展
+#   - 集成 Fcitx5 输入法
+# ==============================================================================
 
 # 引用工具库
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +40,9 @@ check_root
 # ==============================================================================
 #  Identify User 
 # ==============================================================================
+# 识别目标用户
+# TARGET_UID 用于后续 DBUS 配置
+
 log "Identifying user..."
 DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
 TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
@@ -35,11 +55,15 @@ info_kv "Home Dir"    "$HOME_DIR"
 # ==================================
 # temp sudo without passwd
 # ==================================
+# 创建临时 sudo 免密码文件
+# 安装过程中 AUR 包需要以普通用户身份运行 yay
+
 SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 log "Temp sudo file created..."
 
+# 清理函数 - 结束时删除临时免密码文件
 cleanup_sudo() {
     if [ -f "$SUDO_TEMP_FILE" ]; then
         rm -f "$SUDO_TEMP_FILE"
@@ -47,11 +71,20 @@ cleanup_sudo() {
     fi
 }
 
+# 注册清理陷阱
 trap cleanup_sudo EXIT INT TERM
 
 #=================================================
 # Step 1: Install base pkgs
 #=================================================
+# 第一步：安装基础包
+# gnome-desktop: GNOME 核心库
+# gdm: GNOME Display Manager
+# ghostty: 现代终端模拟器
+# celluloid: GTK4 视频播放器
+# loupe: GNOME 图片查看器
+# ttf-jetbrains-maple-mono-nf-xx-xx: Nerd Font 编程字体
+
 section "Step 1" "Install base pkgs"
 log "Installing GNOME and base tools..."
 if exe as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None \
@@ -60,6 +93,7 @@ if exe as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None 
     nautilus-python firefox nm-connection-editor pacman-contrib \
     dnsmasq ttf-jetbrains-maple-mono-nf-xx-xx; then
 
+        # 安装 Nautilus 相关的媒体支持包
         exe pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus 
         log "Packages installed successfully."
 
@@ -69,13 +103,16 @@ else
 fi
 
 
-# start gdm 
+# 启用 GDM (GNOME Display Manager)
 log "Enable gdm..."
 exe systemctl enable gdm
 
 #=================================================
 # Step 2: Set default terminal
 #=================================================
+# 第二步：设置默认终端
+# 将 Ghostty 设为 GNOME 默认终端
+
 section "Step 2" "Set default terminal"
 log "Setting GNOME default terminal to Ghostty..."
 
@@ -85,6 +122,9 @@ exe as_user gsettings set org.gnome.desktop.default-applications.terminal exec-a
 #=================================================
 # Step 3: Set locale
 #=================================================
+# 第三步：设置区域
+# 配置 AccountsService 使登录界面显示中文
+
 section "Step 3" "Set locale"
 log "Configuring GNOME locale for user $TARGET_USER..."
 ACCOUNT_FILE="/var/lib/AccountsService/users/$TARGET_USER"
@@ -203,37 +243,42 @@ EOF
 #=================================================
 # Step 5: Extensions
 #=================================================
+# 第五步：安装 GNOME Shell 扩展
+# 使用 gnome-extensions-cli 工具从 extensions.gnome.org 安装扩展
+
 section "Step 5" "Install Extensions"
 log "Installing Extensions CLI..."
 
 sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-extensions-cli
 
+# 扩展列表 - 这些扩展将被安装并启用
 EXTENSION_LIST=(
-    "arch-update@RaphaelRochet"
-    "aztaskbar@aztaskbar.gitlab.com"
-    "blur-my-shell@aunetx"
-    "caffeine@patapon.info"
-    "clipboard-indicator@tudmotu.com"
-    "color-picker@tuberry"
-    "desktop-cube@schneegans.github.com"
-    "fuzzy-application-search@mkhl.codeberg.page"
-    "lockkeys@vaina.lt"
-    "middleclickclose@paolo.tranquilli.gmail.com"
-    "steal-my-focus-window@steal-my-focus-window"
-    "tilingshell@ferrarodomenico.com"
-    "user-theme@gnome-shell-extensions.gcampax.github.com"
-    "kimpanel@kde.org"
-    "rounded-window-corners@fxgn"
-    "appindicatorsupport@rgcjonas.gmail.com"
+    "arch-update@RaphaelRochet"                      # Arch 更新指示器
+    "aztaskbar@aztaskbar.gitlab.com"                 # 任务栏
+    "blur-my-shell@aunetx"                           # Shell 模糊效果
+    "caffeine@patapon.info"                          # 阻止休眠
+    "clipboard-indicator@tudmotu.com"                # 剪贴板管理
+    "color-picker@tuberry"                           # 取色器
+    "desktop-cube@schneegans.github.com"             # 桌面立方体效果
+    "fuzzy-application-search@mkhl.codeberg.page"    # 模糊搜索
+    "lockkeys@vaina.lt"                              # 键盘锁指示器
+    "middleclickclose@paolo.tranquilli.gmail.com"    # 中键关闭标签
+    "steal-my-focus-window@steal-my-focus-window"    # 窗口焦点窃取
+    "tilingshell@ferrarodomenico.com"                # 平铺窗口管理
+    "user-theme@gnome-shell-extensions.gcampax.github.com" # 用户主题
+    "kimpanel@kde.org"                               # Fcitx5 输入法面板
+    "rounded-window-corners@fxgn"                    # 圆角窗口
+    "appindicatorsupport@rgcjonas.gmail.com"         # 系统托盘支持
 )
 log "Downloading extensions..."
 sudo -u $TARGET_USER gnome-extensions-cli install "${EXTENSION_LIST[@]}" 2>/dev/null
 
+# 启用扩展
 section "Step 5.2" "Enable GNOME Extensions"
 sudo -u "$TARGET_USER" bash <<EOF
     export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_UID}/bus"
 
-    # 定义一个函数来安全地启用扩展 (追加模式)
+    # 定义安全启用扩展的函数 (追加模式)
     enable_extension() {
         local uuid="\$1"
         local current_list=\$(gsettings get org.gnome.shell enabled-extensions)
@@ -255,6 +300,7 @@ sudo -u "$TARGET_USER" bash <<EOF
 
     echo "   ➜ Activating extensions via gsettings..."
 
+    # 启用所有扩展
     enable_extension "user-theme@gnome-shell-extensions.gcampax.github.com"
     enable_extension "arch-update@RaphaelRochet"
     enable_extension "aztaskbar@aztaskbar.gitlab.com"
@@ -280,6 +326,7 @@ log "Compiling extension schemas..."
 # 先确保所有权正确
 chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.local/share/gnome-shell/extensions
 
+# 编译每个扩展的 GSettings schema
 sudo -u "$TARGET_USER" bash <<EOF
     EXT_DIR="$HOME_DIR/.local/share/gnome-shell/extensions"
     
@@ -294,6 +341,8 @@ EOF
 #=================================================
 # Firefox Policies
 #=================================================
+# Firefox 策略配置
+# 安装 GNOME Shell Integration 扩展
 section "Firefox" "Configuring Firefox GNOME Integration"
 exe sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-browser-connector
 
@@ -316,13 +365,18 @@ log "Firefox policies updated."
 #=================================================
 # nautilus fix
 #=================================================
+# Nautilus NVIDIA/输入法修复
 configure_nautilus_user
 #=================================================
 # Step 6: Input Method
 #=================================================
+# 第六步：输入法配置
+# 配置 Fcitx5 环境变量
+
 section "Step 6" "Input method"
 log "Configure input method environment..."
 
+# 添加 Fcitx5 环境变量到 /etc/environment
 if ! grep -q "fcitx" "/etc/environment" 2>/dev/null; then
     cat << EOT >> /etc/environment
 XIM="fcitx"
@@ -339,6 +393,9 @@ fi
 #=================================================
 # Dotfiles
 #=================================================
+# 点文件部署
+# 复制 GNOME 配置文件到用户家目录
+
 section "Dotfiles" "Deploying dotfiles"
 GNOME_DOTFILES_DIR=$PARENT_DIR/gnome-dotfiles
 
@@ -350,6 +407,7 @@ sudo -u $TARGET_USER mkdir -p $HOME_DIR/.config
 # 使用 /. 语法将源文件夹的*内容*合并到目标文件夹
 log "Copying dotfiles..."
 cp -rf "$GNOME_DOTFILES_DIR/." "$HOME_DIR/"
+# 创建模板文件
 as_user mkdir -p "$HOME_DIR/Templates"
 as_user touch "$HOME_DIR/Templates/new"
 as_user touch "$HOME_DIR/Templates/new.sh"
@@ -362,11 +420,17 @@ chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.local
 
 
 # ===  flatpak 权限  ====
+# 允许 Flatpak 应用访问字体配置
   if command -v flatpak &>/dev/null; then
     as_user flatpak override --user --filesystem=xdg-config/fontconfig
   fi
 
 # 4. 安装 Shell 工具
+# thefuck: 命令纠错
+# starship: 终端提示符
+# eza: ls 替代品
+# fish: 友好的 Shell
+# zoxide: cd 替代品
 log "Installing shell tools..."
 pacman -S --noconfirm --needed thefuck starship eza fish zoxide jq
 
