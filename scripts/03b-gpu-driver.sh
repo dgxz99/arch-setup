@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 03b-gpu-driver.sh GPU Driver Installer 参考了cachyos的chwd脚本
 # ==============================================================================
@@ -31,7 +31,7 @@ fi
 
 check_root
 
-section "Phase 2b" "GPU Driver Setup"
+section "Phase 2b" "GPU Driver Setup"s
 
 # ==============================================================================
 # 1. 变量声明与基础信息获取
@@ -225,6 +225,13 @@ if [ "$HAS_NVIDIA" = true ]; then
     fi
 fi
 
+# 虚拟机vdagent
+if systemd-detect-virt -q; then 
+
+    log "virtualmachine detected"
+    PKGS+=("spice-vdagent")
+fi
+
 # ==============================================================================
 # 4. 执行
 # ==============================================================================
@@ -278,4 +285,4 @@ else
     warn "No GPU drivers matched or needed."
 fi
 
-log "Module 02b completed."
+success "Module 02b completed."

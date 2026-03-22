@@ -1,9 +1,9 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 00-utils.sh - The "TUI" Visual Engine (v4.0)
 # ==============================================================================
-# 这是 Shorin Arch Setup 的核心工具库，提供：
+# 这是核心工具库，提供：
 #   1. 终端颜色和样式定义 (ANSI 转义码)
 #   2. 美化输出函数 (日志、分隔线、进度显示等)
 #   3. 命令执行器 (带视觉反馈的命令运行器)
@@ -40,7 +40,7 @@ export WARN="${H_YELLOW}⚠${NC}"    # 黄色警告图标
 export ARROW="${H_CYAN}➜${NC}"     # 青色箭头 - 表示正在进行
 
 # 日志文件
-export TEMP_LOG_FILE="/tmp/log-shorin-arch-setup.txt"
+export TEMP_LOG_FILE="/tmp/log-daguo-arch-setup.txt"
 # 如果日志文件不存在，则创建它并设置权限为 666 (所有人可读写)
 [ ! -f "$TEMP_LOG_FILE" ] && touch "$TEMP_LOG_FILE" && chmod 666 "$TEMP_LOG_FILE"
 
@@ -377,8 +377,19 @@ configure_nautilus_user() {
 
   # 1. 检查系统文件是否存在
   if [ -f "$sys_file" ]; then
+
+    local need_modify=0
+    local env_vars="env"
+
+    # --- 逻辑 1: Niri 检测 (输入法修复) ---
+    if command -v niri >/dev/null 2>&1; then
+        # 只要有 niri，就强制使用 fcitx 模块
+        env_vars="$env_vars GTK_IM_MODULE=fcitx"
+        need_modify=1
+        log "检测到 Niri 环境，准备注入 GTK_IM_MODULE=fcitx"
+    fi
     
-    # 2. 显卡检测逻辑
+    # --- 逻辑 2: 双显卡 NVIDIA 检测 (GSK 渲染修复) ---
     # 使用 lspci 列出所有 PCI 设备，过滤显卡 (VGA 或 3D 控制器)
     local gpu_count=$(lspci | grep -E -i "vga|3d" | wc -l)
     # 检测是否有 NVIDIA 显卡
@@ -387,33 +398,44 @@ configure_nautilus_user() {
     # 只有在双显卡且包含 NVIDIA 的情况下才应用修改
     # 这种配置通常是 Intel/AMD 核显 + NVIDIA 独显的笔记本
     if [ "$gpu_count" -gt 1 ] && [ "$has_nvidia" -gt 0 ]; then
-      
-      # 定义需要注入的环境变量
-      # env 命令用于在指定环境变量下运行程序
-      local env_vars="env GSK_RENDERER=gl GTK_IM_MODULE=fcitx"
+        # 叠加 GSK 渲染变量
+        env_vars="$env_vars GSK_RENDERER=gl"
+        need_modify=1
+        log "检测到双显卡 NVIDIA，准备注入 GSK_RENDERER=gl"
 
-      # 3. 准备用户目录并复制文件
+        # 额外操作: 创建 gsk.conf
+        local env_conf_dir="$HOME_DIR/.config/environment.d"
+        if [ ! -f "$env_conf_dir/gsk.conf" ]; then
+            mkdir -p "$env_conf_dir"
+            echo "GSK_RENDERER=gl" > "$env_conf_dir/gsk.conf"
+            # 修复权限
+            if [ -n "$TARGET_USER" ]; then
+                chown -R "$TARGET_USER" "$env_conf_dir"
+            fi
+            log "已添加用户级环境变量配置: $env_conf_dir/gsk.conf"
+        fi
+    fi
+
+    # --- 3. 执行修改 (如果命中了任意一个逻辑) ---
+    if [ "$need_modify" -eq 1 ]; then
+      
+      # 准备目录并复制
       mkdir -p "$user_dir"
       cp "$sys_file" "$user_file"
-      # 修改文件所有者为目标用户 (因为当前是 root 在操作)
-      chown "$TARGET_USER" "$user_file"
-      # 4. 修改用户目录下的文件
-      # sed -i: 原地修改文件
-      # 将 "Exec=" 替换为 "Exec=env GSK_RENDERER=gl GTK_IM_MODULE=fcitx "
-      # 这样启动 Nautilus 时会自动带上这些环境变量
+      
+      # 修复所有者
+      if [ -n "$TARGET_USER" ]; then
+          chown "$TARGET_USER" "$user_file"
+      fi
+
+      # 修改 Desktop 文件
+      # env_vars 此时可能是:
+      # - "env GTK_IM_MODULE=fcitx" (仅Niri)
+      # - "env GSK_RENDERER=gl" (仅双显卡)
+      # - "env GTK_IM_MODULE=fcitx GSK_RENDERER=gl" (两者都有)
       sed -i "s|^Exec=|Exec=$env_vars |" "$user_file"
       
-      log "已创建用户级 Nautilus 配置: $user_file"
-
-      # 5. 添加用户级环境变量配置
-      # environment.d 目录下的 .conf 文件会被 systemd 用户会话加载
-      local env_conf_dir="$HOME_DIR/.config/environment.d"
-      if [ ! -f "$env_conf_dir/gsk.conf" ]; then
-          mkdir -p "$env_conf_dir"
-          # 创建配置文件，设置 GSK_RENDERER 环境变量
-          echo "GSK_RENDERER=gl" > "$env_conf_dir/gsk.conf"
-          log "已添加用户级环境变量配置: $env_conf_dir/gsk.conf"
-      fi
+      log "已生成 Nautilus 用户配置: $user_file (参数: $env_vars)"
       
     fi
   fi

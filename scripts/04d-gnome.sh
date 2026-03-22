@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # GNOME Setup Script (04d-gnome.sh)
 # ==============================================================================
@@ -58,7 +58,7 @@ info_kv "Home Dir"    "$HOME_DIR"
 # 创建临时 sudo 免密码文件
 # 安装过程中 AUR 包需要以普通用户身份运行 yay
 
-SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
+SUDO_TEMP_FILE="/etc/sudoers.d/99_daguo_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 log "Temp sudo file created..."
@@ -78,23 +78,53 @@ trap cleanup_sudo EXIT INT TERM
 # Step 1: Install base pkgs
 #=================================================
 # 第一步：安装基础包
-# gnome-desktop: GNOME 核心库
-# gdm: GNOME Display Manager
-# ghostty: 现代终端模拟器
-# celluloid: GTK4 视频播放器
+
+# [桌面与核心组件]
+# gnome-desktop: GNOME 桌面核心底层库
+# gdm: GNOME Display Manager (登录管理器)
+# gnome-control-center: 系统设置中心
+# gnome-tweaks: GNOME 高级优化工具 (换主题/字体必装)
+# gnome-software --> bazaar-git【yay】: 软件应用商店
+# flatpak: 通用沙盒应用支持
+# gnome-backgrounds: GNOME 默认壁纸集合
+
+# [日常应用]
+# ghostty: 现代 GPU 加速终端模拟器
+# celluloid: GTK4 视频播放器 (基于 mpv)
 # loupe: GNOME 图片查看器
-# ttf-jetbrains-maple-mono-nf-xx-xx: Nerd Font 编程字体
+# firefox: 网页浏览器
+
+# [网络与系统工具]
+# nm-connection-editor: 高级网络连接编辑器
+# dnsmasq: 本地 DNS 缓存与 DHCP 服务
+# gnome-keyring: 密码环 (保存 Wi-Fi 密码及应用凭证)
+#
+# [文件管理器与扩展支持]
+# nautilus: GNOME 官方文件管理器核心
+# nautilus-python: Python 扩展支持
+# nautilus-open-any-terminal: 右键菜单"在终端打开"插件
+# file-roller: 归档管理器 (解压缩支持)
+# ffmpegthumbnailer: 视频缩略图生成器
+# gvfs-smb: SMB 局域网共享支持
+# gvfs-mtp: MTP 设备支持[USB手机]
+# gvfs-gphoto2: 数码相机支持
+# libgsf: 结构化文件支持 [用于生成旧版 MS Office 文档(.doc/.xls)和 EPUB 电子书的缩略图]
+# gst-plugins-base / good / libav: GStreamer 多媒体与 FFmpeg 解码支持
+#
+# [字体]
+# ttf-cascadia-code-nerd: 微软 Cascadia Code 编程字体 (含 Nerd Fonts 图标)
 
 section "Step 1" "Install base pkgs"
 log "Installing GNOME and base tools..."
-if exe as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None \
-    gnome-desktop gnome-backgrounds gnome-tweaks gdm ghostty celluloid loupe \
-    gnome-control-center gnome-software flatpak file-roller \
-    nautilus-python firefox nm-connection-editor pacman-contrib \
-    dnsmasq ttf-jetbrains-maple-mono-nf-xx-xx; then
+if exe pacman -S --noconfirm --needed \
+    gnome-desktop gdm gnome-control-center gnome-tweaks flatpak \
+    ghostty celluloid loupe firefox \
+    nm-connection-editor dnsmasq gnome-keyring \
+    nautilus nautilus-python nautilus-open-any-terminal file-roller \
+    ffmpegthumbnailer gvfs-smb gvfs-mtp gvfs-gphoto2 libgsf gst-plugins-base gst-plugins-good gst-libav \
+    ttf-cascadia-code-nerd && \
+   exe as_user yay -S --noconfirm --needed bazaar-git; then
 
-        # 安装 Nautilus 相关的媒体支持包
-        exe pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus 
         log "Packages installed successfully."
 
 else
@@ -116,8 +146,17 @@ exe systemctl enable gdm
 section "Step 2" "Set default terminal"
 log "Setting GNOME default terminal to Ghostty..."
 
-exe as_user gsettings set org.gnome.desktop.default-applications.terminal exec 'ghostty'
-exe as_user gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
+# 使用 sudo -u 切换用户，并启动临时 dbus-launch 以确保 gsettings 生效
+sudo -u "$TARGET_USER" bash <<EOF
+    # D-Bus Fix
+    if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ]; then
+        eval \$(dbus-launch --sh-syntax)
+        trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+    fi
+
+    gsettings set org.gnome.desktop.default-applications.terminal exec 'ghostty'
+    gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
+EOF
 
 #=================================================
 # Step 3: Set locale
@@ -145,8 +184,12 @@ log "Configuring shortcuts..."
 
 # 使用 sudo -u 切换用户并注入 DBUS 变量以修改 dconf
 sudo -u "$TARGET_USER" bash <<EOF
-    # 关键：手动指定 DBUS 地址
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_UID}/bus"
+    # 在非图形化环境修改 dconf 必须手动启动 session bus
+    if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ] || [ ! -e "\${DBUS_SESSION_BUS_ADDRESS#unix:path=}" ]; then
+        echo "   -> Starting temporary D-Bus session for shortcuts..."
+        eval \$(dbus-launch --sh-syntax)
+        trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+    fi
 
     echo "   ➜ Applying shortcuts for user: $(whoami)..."
 
@@ -157,7 +200,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     # 基础窗口控制
     gsettings set \$SCHEMA close "['<Super>q']"
-    gsettings set \$SCHEMA show-desktop "['<Super>h']"
+    gsettings set \$SCHEMA show-desktop "['<Super>d']"
     gsettings set \$SCHEMA toggle-fullscreen "['<Alt><Super>f']"
     gsettings set \$SCHEMA toggle-maximized "['<Super>f']"
     
@@ -224,6 +267,9 @@ sudo -u "$TARGET_USER" bash <<EOF
         echo "\$path"
     }
 
+    # 重置列表以避免冲突
+    gsettings set \$SCHEMA custom-keybindings "[]"
+
     # 构建自定义快捷键列表
     
     P0=\$(add_custom 0 "openbrowser" "firefox" "<Super>b")
@@ -245,11 +291,13 @@ EOF
 #=================================================
 # 第五步：安装 GNOME Shell 扩展
 # 使用 gnome-extensions-cli 工具从 extensions.gnome.org 安装扩展
+# "middleclickclose@paolo.tranquilli.gmail.com"    # 中键关闭标签
+# "steal-my-focus-window@steal-my-focus-window"    # 窗口焦点窃取
 
 section "Step 5" "Install Extensions"
 log "Installing Extensions CLI..."
 
-sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-extensions-cli
+sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-extensions-cli extension-manager
 
 # 扩展列表 - 这些扩展将被安装并启用
 EXTENSION_LIST=(
@@ -262,13 +310,15 @@ EXTENSION_LIST=(
     "desktop-cube@schneegans.github.com"             # 桌面立方体效果
     "fuzzy-application-search@mkhl.codeberg.page"    # 模糊搜索
     "lockkeys@vaina.lt"                              # 键盘锁指示器
-    "middleclickclose@paolo.tranquilli.gmail.com"    # 中键关闭标签
-    "steal-my-focus-window@steal-my-focus-window"    # 窗口焦点窃取
     "tilingshell@ferrarodomenico.com"                # 平铺窗口管理
     "user-theme@gnome-shell-extensions.gcampax.github.com" # 用户主题
     "kimpanel@kde.org"                               # Fcitx5 输入法面板
     "rounded-window-corners@fxgn"                    # 圆角窗口
     "appindicatorsupport@rgcjonas.gmail.com"         # 系统托盘支持
+    "CoverflowAltTab@palatis.blogspot.com"           # 3D 覆盖流样式的 Alt-Tab 切换
+    "drive-menu@gnome-shell-extensions.gcampax.github.com" # 顶部面板U盘/移动硬盘弹出菜单
+    "dash-to-dock@micxgx.gmail.com"                  # Dash to Dock
+    "app-hider@lynith.dev"                           # 隐藏菜单中的App
 )
 log "Downloading extensions..."
 sudo -u $TARGET_USER gnome-extensions-cli install "${EXTENSION_LIST[@]}" 2>/dev/null
@@ -276,7 +326,13 @@ sudo -u $TARGET_USER gnome-extensions-cli install "${EXTENSION_LIST[@]}" 2>/dev/
 # 启用扩展
 section "Step 5.2" "Enable GNOME Extensions"
 sudo -u "$TARGET_USER" bash <<EOF
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_UID}/bus"
+    # D-Bus
+    if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ]; then
+        eval \$(dbus-launch --sh-syntax)
+        trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+    fi
+
+    echo "   ➜ Activating extensions via gsettings (D-Bus Active)..."
 
     # 定义安全启用扩展的函数 (追加模式)
     enable_extension() {
@@ -300,25 +356,30 @@ sudo -u "$TARGET_USER" bash <<EOF
 
     echo "   ➜ Activating extensions via gsettings..."
 
-    # 启用所有扩展
-    enable_extension "user-theme@gnome-shell-extensions.gcampax.github.com"
-    enable_extension "arch-update@RaphaelRochet"
-    enable_extension "aztaskbar@aztaskbar.gitlab.com"
-    enable_extension "blur-my-shell@aunetx"
-    enable_extension "caffeine@patapon.info"
-    enable_extension "clipboard-indicator@tudmotu.com"
-    enable_extension "color-picker@tuberry"
-    enable_extension "desktop-cube@schneegans.github.com"
-    enable_extension "fuzzy-application-search@mkhl.codeberg.page"
-    enable_extension "lockkeys@vaina.lt"
-    enable_extension "middleclickclose@paolo.tranquilli.gmail.com"
-    enable_extension "steal-my-focus-window@steal-my-focus-window"
-    enable_extension "tilingshell@ferrarodomenico.com"
-    enable_extension "kimpanel@kde.org"
-    enable_extension "rounded-window-corners@fxgn"
-    enable_extension "appindicatorsupport@rgcjonas.gmail.com"
+    # 启用需要的扩展
+    declare -a ext_array=(
+        "user-theme@gnome-shell-extensions.gcampax.github.com"
+        "arch-update@RaphaelRochet"
+        "blur-my-shell@aunetx"
+        "caffeine@patapon.info"
+        "clipboard-indicator@tudmotu.com"
+        "color-picker@tuberry"
+        "desktop-cube@schneegans.github.com"
+        "fuzzy-application-search@mkhl.codeberg.page"
+        "lockkeys@vaina.lt"
+        "tilingshell@ferrarodomenico.com"
+        "kimpanel@kde.org"
+        "rounded-window-corners@fxgn"
+        "appindicatorsupport@rgcjonas.gmail.com"
+        "CoverflowAltTab@palatis.blogspot.com"
+        "drive-menu@gnome-shell-extensions.gcampax.github.com"
+        "dash-to-dock@micxgx.gmail.com"
+        "app-hider@lynith.dev"
+    )
 
-    echo "   ➜ Extensions activation request sent."
+    for ext in "\${ext_array[@]}"; do
+        enable_extension "\$ext"
+    done
 EOF
 
 # 编译扩展 Schema (防止报错)
@@ -339,30 +400,6 @@ sudo -u "$TARGET_USER" bash <<EOF
 EOF
 
 #=================================================
-# Firefox Policies
-#=================================================
-# Firefox 策略配置
-# 安装 GNOME Shell Integration 扩展
-section "Firefox" "Configuring Firefox GNOME Integration"
-exe sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-browser-connector
-
-# 配置 Firefox 策略自动安装扩展
-POL_DIR="/etc/firefox/policies"
-exe mkdir -p "$POL_DIR"
-
-echo '{
-  "policies": {
-    "Extensions": {
-      "Install": [
-        "https://addons.mozilla.org/firefox/downloads/latest/gnome-shell-integration/latest.xpi"
-      ]
-    }
-  }
-}' > "$POL_DIR/policies.json"
-
-exe chmod 755 "$POL_DIR" && exe chmod 644 "$POL_DIR/policies.json"
-log "Firefox policies updated."
-#=================================================
 # nautilus fix
 #=================================================
 # Nautilus NVIDIA/输入法修复
@@ -376,28 +413,28 @@ configure_nautilus_user
 section "Step 6" "Input method"
 log "Configure input method environment..."
 
-# 添加 Fcitx5 环境变量到 /etc/environment
-if ! grep -q "fcitx" "/etc/environment" 2>/dev/null; then
-    cat << EOT >> /etc/environment
-XIM="fcitx"
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
+# 定义 systemd 用户环境变量目录
+ENV_DIR="/home/$TARGET_USER/.config/environment.d"
+sudo -u "$TARGET_USER" mkdir -p "$ENV_DIR"
+
+# 添加 Fcitx5 环境变量
+sudo -u "$TARGET_USER" cat << EOT > "$ENV_DIR/fcitx5.conf"
+# Fcitx5 Environment Variables (Wayland Optimized)
 XMODIFIERS=@im=fcitx
-XDG_CURRENT_DESKTOP=GNOME
+QT_IM_MODULE=fcitx
+# GLFW_IM_MODULE=ibus # (可选) 如果你玩 Minecraft 等基于 GLFW 的游戏，可以解开这行注释
 EOT
-    log "Fcitx environment variables added."
-else
-    log "Fcitx environment variables already exist."
-fi
 
 #=================================================
 # Dotfiles
 #=================================================
 # 点文件部署
 # 复制 GNOME 配置文件到用户家目录
+# 先复制 common (公共配置)，再复制 gnome (桌面特有配置)
 
 section "Dotfiles" "Deploying dotfiles"
-GNOME_DOTFILES_DIR=$PARENT_DIR/gnome-dotfiles
+COMMON_DOTFILES_DIR=$PARENT_DIR/dotfiles/common
+GNOME_DOTFILES_DIR=$PARENT_DIR/dotfiles/gnome
 
 # 1. 确保目标目录存在
 log "Ensuring .config exists..."
@@ -405,25 +442,36 @@ sudo -u $TARGET_USER mkdir -p $HOME_DIR/.config
 
 # 2. 复制文件 (包含隐藏文件)
 # 使用 /. 语法将源文件夹的*内容*合并到目标文件夹
-log "Copying dotfiles..."
-cp -rf "$GNOME_DOTFILES_DIR/." "$HOME_DIR/"
+# 先复制公共配置，再复制 GNOME 特有配置 (后者覆盖前者)
+log "Copying common dotfiles..."
+if [ -d "$COMMON_DOTFILES_DIR" ]; then
+    cp -rf "$COMMON_DOTFILES_DIR/." "$HOME_DIR/"
+else
+    warn "Common dotfiles directory not found: $COMMON_DOTFILES_DIR"
+fi
+
+log "Copying GNOME dotfiles..."
+if [ -d "$GNOME_DOTFILES_DIR" ]; then
+    cp -rf "$GNOME_DOTFILES_DIR/." "$HOME_DIR/"
+else
+    warn "GNOME dotfiles directory not found: $GNOME_DOTFILES_DIR"
+fi
 # 创建模板文件
 as_user mkdir -p "$HOME_DIR/Templates"
 as_user touch "$HOME_DIR/Templates/new"
-as_user touch "$HOME_DIR/Templates/new.sh"
-as_user echo "#!/bin/bash" >> "$HOME_DIR/Templates/new.sh"
+sudo -u "$TARGET_USER" bash -c "echo '#!/bin/bash' > $HOME_DIR/Templates/new.sh"
+sudo -u "$TARGET_USER" chmod +x "$HOME_DIR/Templates/new.sh"
 # 3. 修复权限 (因为 cp 是 root 运行的)
 # 明确修复 home 目录下的关键配置文件夹，避免权限问题
 log "Fixing permissions..."
 chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.config
 chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.local
 
-
 # ===  flatpak 权限  ====
 # 允许 Flatpak 应用访问字体配置
-  if command -v flatpak &>/dev/null; then
-    as_user flatpak override --user --filesystem=xdg-config/fontconfig
-  fi
+if command -v flatpak &>/dev/null; then
+    sudo -u "$TARGET_USER" flatpak override --user --filesystem=xdg-config/fontconfig
+fi
 
 # 4. 安装 Shell 工具
 # thefuck: 命令纠错
@@ -431,8 +479,9 @@ chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.local
 # eza: ls 替代品
 # fish: 友好的 Shell
 # zoxide: cd 替代品
+# jq: JSON 处理工具
 log "Installing shell tools..."
-pacman -S --noconfirm --needed thefuck starship eza fish zoxide jq
+pacman -S --noconfirm --needed thefuck starship fish
 
 log "Installation Complete! Please reboot."
 cleanup_sudo

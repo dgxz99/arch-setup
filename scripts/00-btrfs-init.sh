@@ -68,15 +68,22 @@ if [ "$ROOT_FSTYPE" == "btrfs" ]; then
             # 设置快照保留策略，控制快照数量防止磁盘空间耗尽
             exe snapper -c root set-config \
                 ALLOW_GROUPS="wheel" \                  # 允许 wheel 组用户管理快照
-                TIMELINE_CREATE="no" \                  # 禁用自动时间线快照（节省空间）
+                TIMELINE_CREATE="yes" \                 # 启用自动时间线快照
                 TIMELINE_CLEANUP="yes" \                # 启用时间线清理
-                NUMBER_LIMIT="20" \                     # 普通快照最多保留 20 个
+                NUMBER_LIMIT="10" \                     # 普通快照最多保留 10 个
+                NUMBER_MIN_AGE="0" \                    # 快照没有最小年龄限制
                 NUMBER_LIMIT_IMPORTANT="5" \            # 重要快照最多保留 5 个
                 TIMELINE_LIMIT_HOURLY="5" \             # 每小时快照保留 5 个
-                TIMELINE_LIMIT_DAILY="7" \              # 每日快照保留 7 个
+                TIMELINE_LIMIT_DAILY="3" \              # 每日快照保留 3 个
                 TIMELINE_LIMIT_WEEKLY="0" \             # 不保留每周快照
                 TIMELINE_LIMIT_MONTHLY="0" \            # 不保留每月快照
                 TIMELINE_LIMIT_YEARLY="0"               # 不保留每年快照
+        
+        # 启用 Snapper 定时器，用于自动创建和清理快照
+        exe systemctl enable --now snapper-cleanup.timer
+        exe systemctl enable --now snapper-timeline.timer
+
+        
         fi
     else
         log "Config 'root' already exists."
@@ -121,12 +128,13 @@ if findmnt -n -o FSTYPE /home | grep -q "btrfs"; then
             # 对 /home 应用相同的保留策略
             exe snapper -c home set-config \
                 ALLOW_GROUPS="wheel" \
-                TIMELINE_CREATE="no" \
+                TIMELINE_CREATE="yes" \
                 TIMELINE_CLEANUP="yes" \
-                NUMBER_LIMIT="20" \
+                NUMBER_LIMIT="10" \
+                NUMBER_MIN_AGE="0" \
                 NUMBER_LIMIT_IMPORTANT="5" \
                 TIMELINE_LIMIT_HOURLY="5" \
-                TIMELINE_LIMIT_DAILY="7" \
+                TIMELINE_LIMIT_DAILY="3" \
                 TIMELINE_LIMIT_WEEKLY="0" \
                 TIMELINE_LIMIT_MONTHLY="0" \
                 TIMELINE_LIMIT_YEARLY="0"

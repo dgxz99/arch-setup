@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # Script: 02a-dualboot-fix.sh
 # Purpose: Auto-configure for Windows dual-boot (OS-Prober only).
@@ -82,9 +82,11 @@ section "Step 1/2" "System Analysis"
 
 # 安装双系统检测工具
 # os-prober: 检测其他操作系统
-# exfat-utils: 支持 exFAT 文件系统（Windows 常用）
-log "Installing dual-boot detection tools (os-prober, exfat-utils)..."
-exe pacman -S --noconfirm --needed os-prober exfat-utils
+# exfat-utils: 支持 exFAT 文件系统
+# ntfs-3g: 确保 os-prober 能稳定挂载并读取 Windows 的 NTFS 分区
+# exfatprogs: 现代 Linux 推荐用来替代 exfat-utils 的工具
+log "Installing file system tools for dual-boot..."
+exe pacman -S --noconfirm --needed os-prober ntfs-3g exfatprogs
 
 # 运行 os-prober 检测 Windows
 log "Scanning for Windows installation..."

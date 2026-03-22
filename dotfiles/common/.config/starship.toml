@@ -1,0 +1,181 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+$os\
+$username\
+$hostname\
+$shell\
+$directory\
+$git_branch\
+$git_status\
+$c\
+$cpp\
+$rust\
+$golang\
+$nodejs\
+$php\
+$java\
+$kotlin\
+$haskell\
+$python\
+$docker_context\
+$fill\
+$time\
+$line_break$character"""
+
+# 使用自定义调色板名称
+palette = 'daguo'
+
+[palettes.daguo]
+# --- 动态颜色映射区域 (Dynamic Mapping) ---
+# 文字颜色 -> 对应壁纸生成的“表面上的文字颜色”
+color_fg0 = '#e0e3e8'
+# 背景色 -> 对应壁纸生成的“表面颜色”
+color_bg1 = '#101417'
+# 辅助背景 -> 对应壁纸生成的“高亮表面颜色”
+color_bg3 = '#262a2e'
+
+# --- 核心彩色映射 ---
+# 蓝色系 -> 主色调 (Primary)
+color_blue = '#96cdf8'
+# 青色/水鸭色 -> 次要色调 (Secondary)
+color_aqua = '#b7c9d9'
+# 绿色 -> 第三色调 (Tertiary) 或 成功色
+color_green = '#cfc0e8'
+# 橙色 -> 第三色调容器 (通常是暖色)
+color_orange = '#4d4162'
+# 紫色 -> 次要色调容器
+color_purple = '#384956'
+# 红色 -> 错误/警告色 (Error) 或 主色调容器
+color_red = '#ffb4ab'
+# 黄色 -> 逆转主色 (通常在深色模式下是亮黄/亮色)
+color_yellow = '#27638a'
+# 洋红 -> 也是一种强调色
+color_magenta = '#cae6ff'
+# 白色 -> 亮色文字
+color_white = '#c1c7ce'
+
+
+[os]
+disabled = false
+format = '[$symbol ](bold cyan)'
+
+[os.symbols]
+Windows = "󰍲"
+Ubuntu = "󰕈"
+SUSE = ""
+Raspbian = "󰐿"
+Mint = "󰣭"
+Macos = "󰀵"
+Manjaro = ""
+Linux = "󰌽"
+Gentoo = "󰣨"
+Fedora = "󰣛"
+Alpine = ""
+Amazon = ""
+Android = ""
+AOSC = ""
+Arch = "󰣇"
+Artix = "󰣇"
+EndeavourOS = ""
+CentOS = ""
+Debian = "󰣚"
+Redhat = "󱄛"
+RedHatEnterprise = "󱄛"
+Pop = ""
+
+[username]
+show_always = true
+# 这里的 bright-green 会自动跟随你的 Ghostty/Kitty 主题变化
+format = '[$user](bright-green)[@](color_white)'
+
+[hostname]
+disabled = false
+ssh_only = false
+format = '[$hostname](bright-purple) '
+
+[shell]
+fish_indicator = '󰈺'
+bash_indicator = '_'
+powershell_indicator = '󰨊'
+unknown_indicator = ''
+style = 'cyan bold'
+disabled = false
+
+[directory]
+format = "[$path ](color_yellow)"
+truncation_length = 6
+truncation_symbol = "…/"
+
+[directory.substitutions]
+"Documents" = "󰈙"
+"Downloads" = ""
+"Music" = "󰝚"
+"Pictures" = ""
+
+[git_branch]
+symbol = ""
+format = '[$symbol $branch ](color_aqua)'
+
+[git_status]
+format = '[($all_status$ahead_behind )](color_aqua)'
+
+[nodejs]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[c]
+symbol = " "
+format = '[$symbol( $version) ](cyan)'
+
+[cpp]
+symbol = " "
+format = '[$symbol( $version) ](cyan)'
+
+[rust]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[golang]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[php]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[java]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[kotlin]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[haskell]
+symbol = ""
+format = '[$symbol( $version) ](cyan)'
+
+[python]
+symbol = ""
+format = '[$symbol( $version)(\($virtualenv\)) ](cyan)'
+
+[docker_context]
+symbol = ""
+format = '[[$symbol( $context) ](fg:color_bg3)]($style)'
+
+[fill]
+disabled = false
+symbol = ' '
+
+[time]
+disabled = false
+format = '[ $time](fg:color_white)'
+
+[line_break]
+disabled = false
+
+[character]
+disabled = false
+success_symbol = '[\$](color_white)'
+error_symbol = '[\$](color_red)'

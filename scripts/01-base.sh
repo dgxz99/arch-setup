@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 01-base.sh - Base System Configuration
 # ==============================================================================
@@ -113,7 +113,7 @@ section "Step 3/6" "Base Fonts"
 
 log "Installing adobe-source-han-serif-cn-fonts adobe-source-han-sans-cn-fonts noto-fonts-cjk, noto-fonts, emoji..."
 # exe pacman -S --noconfirm --needed adobe-source-han-serif-cn-fonts adobe-source-han-sans-cn-fonts noto-fonts-cjk noto-fonts noto-fonts-emoji ttf-jetbrains-mono-nerd
-exe pacman -S --noconfirm --needed noto-fonts-cjk noto-fonts noto-fonts-emoji ttf-cascadia-mono-nerd
+exe pacman -S --noconfirm --needed adobe-source-han-serif-cn-fonts adobe-source-han-sans-cn-fonts noto-fonts noto-fonts-emoji ttf-cascadia-mono-nerd
 log "Base fonts installed."
 
 # 配置 TTY 控制台字体
@@ -126,25 +126,25 @@ exe pacman -S --noconfirm --needed terminus-font
 
 log "Setting font for current session..."
 # setfont 用于设置当前 TTY 的字体
-# ter-v28n: Terminus 字体，28 像素高，n 表示正常粗细
-exe setfont ter-v28n
+# ter-v20n: Terminus 字体，20 像素高，n 表示正常粗细
+exe setfont ter-v20n
 
 log "Configuring permanent vconsole font..."
 # /etc/vconsole.conf 是控制台配置文件
 # 设置 FONT 变量使字体在每次启动时自动应用
 if [ -f /etc/vconsole.conf ] && grep -q "^FONT=" /etc/vconsole.conf; then
     # 如果已有 FONT 设置，则替换
-    exe sed -i 's/^FONT=.*/FONT=ter-v28n/' /etc/vconsole.conf
+    exe sed -i 's/^FONT=.*/FONT=ter-v20n/' /etc/vconsole.conf
 else
     # 如果没有，则追加
-    echo "FONT=ter-v28n" >> /etc/vconsole.conf
+    echo "FONT=ter-v20n" >> /etc/vconsole.conf
 fi
 
 log "Restarting systemd-vconsole-setup..."
 # 重启 vconsole 服务以应用新配置
 exe systemctl restart systemd-vconsole-setup
 
-success "TTY font configured (ter-v24n)."
+success "TTY font configured (ter-v20n)."
 # ------------------------------------------------------------------------------
 # 4. Configure archlinuxcn Repository
 # ------------------------------------------------------------------------------
@@ -202,12 +202,60 @@ success "ArchLinuxCN configured."
 #   包含: gcc, make, autoconf, automake, binutils, fakeroot, patch 等
 #
 # 注意：这里直接从 archlinuxcn 安装预编译版，不需要从 AUR 编译
+# pacman-contrib: 包管理维护脚本 (包含 paccache 等)
 
 section "Step 5/6" "AUR Helpers"
 
 log "Installing yay and paru..."
-exe pacman -S --noconfirm --needed base-devel yay paru
+exe pacman -S --noconfirm --needed base-devel yay paru pacman-contrib
 success "Helpers installed."
+
+# ------------------------------------------------------------------------------
+# 6. Configure NetworkManager Backend (iwd)
+# ------------------------------------------------------------------------------
+# 第六步：配置 NetworkManager 使用 iwd 作为 WiFi 后端
+# NetworkManager 默认使用 wpa_supplicant 管理 WiFi 连接
+# iwd (iNet Wireless Daemon) 是 Intel 开发的现代 WiFi 管理守护进程
+#
+# iwd 相比 wpa_supplicant 的优势：
+#   - 更快的连接速度和更低的内存占用
+#   - 更简洁的配置和更好的安全性
+#   - 内置的网络配置存储（无需额外依赖）
+#   - 支持现代 WiFi 功能（如 SAE/WPA3）
+#
+# impala: 一个基于 TUI 的 iwd 前端工具，方便在终端中管理 WiFi
+#
+# 注意：此配置仅在系统已安装 NetworkManager 时生效
+
+section "Step 6/6" "Network Backend (iwd)"
+
+# 检查 NetworkManager 是否已安装
+# pacman -Qi: 查询本地已安装的包信息
+if pacman -Qi networkmanager &> /dev/null; then
+    log "NetworkManager detected. Proceeding with iwd backend configuration..."
+
+    log "Configuring NetworkManager to use iwd backend..."
+    # 安装 iwd 守护进程和 impala TUI 管理工具
+    exe pacman -S --noconfirm --needed iwd impala
+    # 启用 iwd 服务，使其开机自动启动
+    exe systemctl enable iwd
+    
+    # 确保 NetworkManager 配置目录存在
+    # conf.d 目录用于存放模块化配置文件
+    if [ ! -d /etc/NetworkManager/conf.d ]; then
+        mkdir -p /etc/NetworkManager/conf.d
+    fi
+    # 创建配置文件，指定 WiFi 后端为 iwd
+    # [device] 节下的 wifi.backend 选项告诉 NetworkManager 使用 iwd 而非 wpa_supplicant
+    echo -e "[device]\nwifi.backend=iwd" >> /etc/NetworkManager/conf.d/iwd.conf
+
+    # 不立即重启 NetworkManager，避免断开当前网络连接
+    # 配置将在下次重启后生效
+    log "Notice: NetworkManager restart deferred. Changes will apply after reboot."
+    success "Network backend configured (iwd)."
+else
+    log "NetworkManager not found. Skipping iwd configuration."
+fi
 
 # 模块完成
 log "Module 01 completed."

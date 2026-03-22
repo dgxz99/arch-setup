@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 03-user.sh - User Creation & Configuration (Visual Fix)
 # ==============================================================================
@@ -32,7 +32,7 @@ check_root
 
 section "Phase 3" "User Account Setup"
 
-# 从 /etc/passwd 中查找 UID 为 1000 的用户
+# 检测是否已存在普通用户 (UID 1000)
 EXISTING_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
 MY_USERNAME=""
 SKIP_CREATION=false
@@ -47,26 +47,25 @@ else
     # 不存在用户，需要交互式创建
     warn "No standard user found (UID 1000)."
     
+    # 交互式输入用户名循环
     while true; do
         echo ""
-        # 使用 echo -n 打印普通提示，避免 read -p 的兼容性问题
-        echo -ne "   Please enter new username: "
+        # 使用 echo -ne 配合颜色变量实现漂亮的输入提示
+        echo -ne "   ${ARROW} ${H_YELLOW}Please enter new username:${NC} "
         read INPUT_USER
         
-        # 去除可能误输入的空格
+        # 去除前后空格
         INPUT_USER=$(echo "$INPUT_USER" | xargs)
         
-        # 检查用户名是否为空
+        # 空值检查
         if [[ -z "$INPUT_USER" ]]; then
             warn "Username cannot be empty."
             continue
         fi
 
-        # [FIX] 分离打印和读取，确保变量和颜色正确显示
-        echo -ne "   Create user '${BOLD}${INPUT_USER}${NC}'? [Y/n] "
+        # 确认提示
+        echo -ne "   ${INFO} Create user '${BOLD}${H_CYAN}${INPUT_USER}${NC}'? [Y/n] "
         read CONFIRM
-        
-        # 默认为 Y（确认）
         CONFIRM=${CONFIRM:-Y}
         
         if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
@@ -81,7 +80,7 @@ fi
 # Export username for next scripts
 # 导出用户名供后续脚本使用
 # 其他模块会读取这个文件获取用户名
-echo "$MY_USERNAME" > /tmp/shorin_install_user
+echo "$MY_USERNAME" > /tmp/daguo_install_user
 
 # ------------------------------------------------------------------------------
 # 2. Create User & Sudo
@@ -90,7 +89,7 @@ echo "$MY_USERNAME" > /tmp/shorin_install_user
 # wheel 组是 Arch Linux 中默认的管理员组
 # 加入 wheel 组的用户可以使用 sudo 执行管理员命令
 
-section "Step 2/3" "Account & Privileges"
+section "Step 2/4" "Account & Privileges"
 
 if [ "$SKIP_CREATION" = true ]; then
     # 用户已存在，检查权限
@@ -108,13 +107,17 @@ else
     # -m: 创建家目录
     # -g wheel: 主组设为 wheel
     log "Creating new user..."
-    exe useradd -m -g wheel "$MY_USERNAME"
+    exe useradd -m -g wheel -s /bin/bash "$MY_USERNAME"
     
     # 设置密码
     log "Setting password for $MY_USERNAME..."
-    # passwd 需要交互，直接运行
+    echo -e "   ${H_GRAY}--------------------------------------------------${NC}"
+    # passwd 需要交互，直接运行 (必须要交互，不能用 exe 包装)
     passwd "$MY_USERNAME"
-    if [ $? -eq 0 ]; then 
+    PASSWORD_STATUS=$?
+    echo -e "   ${H_GRAY}--------------------------------------------------${NC}"
+
+    if [ $PASSWORD_STATUS -eq 0 ]; then 
         success "Password set."
     else 
         error "Failed to set password."
@@ -141,6 +144,20 @@ else
     success "Sudo access configured."
 fi
 
+# 配置 Faillock (防止输错密码锁定) [新增部分]
+log "Configuring password lockout policy (faillock)..."
+FAILLOCK_CONF="/etc/security/faillock.conf"
+
+if [ -f "$FAILLOCK_CONF" ]; then
+    # 使用 sed 匹配被注释的(# deny =) 或者未注释的(deny =) 行，统一改为 deny = 0
+    # 正则解释: ^#\? 匹配开头可选的井号; \s* 匹配可选空格
+    exe sed -i 's/^#\?\s*deny\s*=.*/deny = 0/' "$FAILLOCK_CONF"
+    success "Account lockout disabled (deny=0)."
+else
+    # 极少数情况该文件不存在，虽然在 Arch 中默认是有这个文件的
+    warn "File $FAILLOCK_CONF not found. Skipping lockout config."
+fi
+
 # ------------------------------------------------------------------------------
 # 3. Generate User Directories
 # ------------------------------------------------------------------------------
@@ -155,7 +172,7 @@ fi
 #   - ~/Templates (模板)
 #   - ~/Public (公共)
 
-section "Step 3/3" "User Directories"
+section "Step 3/4" "User Directories"
 
 exe pacman -Syu --noconfirm --needed xdg-user-dirs
 
@@ -173,4 +190,50 @@ else
     warn "Failed to generate directories."
 fi
 
-log "Module 03 completed."
+# ==============================================================================
+# 4. 环境配置 (PATH 与 .local/bin)
+# ==============================================================================
+section "Step 4/4" "Environment Setup"
+
+# 1. 创建 ~/.local/bin
+# 关键点：使用 runuser 确保文件夹归属权是用户，而不是 root
+LOCAL_BIN_PATH="$REAL_HOME/.local/bin"
+
+log "Creating user executable directory..."
+info_kv "Target" "$LOCAL_BIN_PATH"
+
+if exe runuser -u "$MY_USERNAME" -- mkdir -p "$LOCAL_BIN_PATH"; then
+    success "Created directory (Ownership: $MY_USERNAME)"
+else
+    error "Failed to create ~/.local/bin"
+fi
+
+# 2. 配置全局 PATH (/etc/profile.d/)
+PROFILE_SCRIPT="/etc/profile.d/user_local_bin.sh"
+log "Configuring automatic PATH detection..."
+
+# 写入配置脚本
+cat << 'EOF' > "$PROFILE_SCRIPT"
+# Automatically add ~/.local/bin to PATH if it exists
+if [ -d "$HOME/.local/bin" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+EOF
+
+# 设置权限 (rw-r--r--)
+exe chmod 644 "$PROFILE_SCRIPT"
+
+if [ -f "$PROFILE_SCRIPT" ]; then
+    success "PATH script installed to /etc/profile.d/"
+    info_kv "Effect" "Requires re-login"
+else
+    warn "Failed to create profile.d script."
+fi
+
+# ==============================================================================
+# 完成
+# ==============================================================================
+hr
+success "Module 03 completed."
+echo -e "   ${DIM}User '${MY_USERNAME}' is ready for Desktop Environment setup.${NC}"
+echo ""

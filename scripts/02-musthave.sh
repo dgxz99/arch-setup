@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 02-musthave.sh - Essential Software, Drivers & Locale
 # ==============================================================================
@@ -47,32 +47,9 @@ if [ "$ROOT_FSTYPE" == "btrfs" ]; then
     #   - btrfs-assistant: 图形化 Btrfs 管理工具
     exe pacman -S --noconfirm --needed snapper snap-pac btrfs-assistant
     success "Snapper tools installed."
-
-    # 检查并初始化 Snapper 配置
-    log "Initializing Snapper 'root' configuration..."
-    if ! snapper list-configs | grep -q "^root "; then
-        # 如果 .snapshots 目录已存在但不是 Snapper 管理的，需要清理
-        if [ -d "/.snapshots" ]; then
-            warn "Removing existing /.snapshots..."
-            exe_silent umount /.snapshots
-            exe_silent rm -rf /.snapshots
-        fi
-        if exe snapper -c root create-config /; then
-            success "Snapper config created."
-            # 设置快照保留策略
-            log "Applying retention policy..."
-            exe snapper -c root set-config ALLOW_GROUPS="wheel" TIMELINE_CREATE="no" TIMELINE_CLEANUP="yes" NUMBER_LIMIT="10" NUMBER_LIMIT_IMPORTANT="5" TIMELINE_LIMIT_HOURLY="5" TIMELINE_LIMIT_DAILY="7" TIMELINE_LIMIT_WEEKLY="0" TIMELINE_LIMIT_MONTHLY="0" TIMELINE_LIMIT_YEARLY="0"
-            success "Policy applied."
-        fi
-    else
-        log "Config exists."
-    fi
     
-    # 启用 Snapper 定时器，用于自动创建和清理快照
-    exe systemctl enable --now snapper-timeline.timer snapper-cleanup.timer
-
-    # GRUB Integration
-    # GRUB 集成：允许从 GRUB 菜单启动到快照
+# GRUB Integration
+# GRUB 集成：允许从 GRUB 菜单启动到快照
 if [ -f "/etc/default/grub" ] && command -v grub-mkconfig >/dev/null 2>&1; then
         log "Checking GRUB..."
         
@@ -169,7 +146,7 @@ exe pacman -S --noconfirm --needed sof-firmware alsa-ucm-conf alsa-firmware
 # pipewire-jack: JACK 兼容层 (专业音频应用需要)
 # pavucontrol: PulseAudio 音量控制界面
 log "Installing Pipewire stack..."
-exe pacman -S --noconfirm --needed pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
+exe pacman -S --noconfirm --needed pipewire lib32-pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
 
 # 为所有用户启用 Pipewire 服务
 # --global: 对所有用户生效，而不仅仅是当前用户
@@ -185,20 +162,39 @@ success "Audio setup complete."
 
 section "Step 3/8" "Locale Configuration"
 
-# 检查中文区域是否已经激活
-# locale -a: 列出所有可用的区域设置
+# 标记是否需要重新生成
+NEED_GENERATE=false
+
+# --- 1. 检测 en_US.UTF-8 ---
+if locale -a | grep -iq "en_US.utf8"; then
+    success "English locale (en_US.UTF-8) is active."
+else
+    log "Enabling en_US.UTF-8..."
+    # 使用 sed 取消注释
+    sed -i 's/^#\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+    NEED_GENERATE=true
+fi
+
+# --- 2. 检测 zh_CN.UTF-8 ---
 if locale -a | grep -iq "zh_CN.utf8"; then
     success "Chinese locale (zh_CN.UTF-8) is active."
 else
-    # 如果未激活，则取消注释 /etc/locale.gen 中的 zh_CN.UTF-8 行
-    log "Generating zh_CN.UTF-8..."
+    log "Enabling zh_CN.UTF-8..."
+    # 使用 sed 取消注释
     sed -i 's/^#\s*zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
-    # locale-gen 根据 locale.gen 生成区域数据
+    NEED_GENERATE=true
+fi
+
+# --- 3. 如果有修改，统一执行生成 ---
+if [ "$NEED_GENERATE" = true ]; then
+    log "Generating locales (this may take a moment)..."
     if exe locale-gen; then
-        success "Locale generated."
+        success "Locales generated successfully."
     else
         error "Locale generation failed."
     fi
+else
+    success "All locales are already up to date."
 fi
 
 # ------------------------------------------------------------------------------
@@ -212,7 +208,7 @@ fi
 
 section "Step 4/8" "Input Method (Fcitx5)"
 
-exe pacman -S --noconfirm --needed fcitx5-im fcitx5-chinese-addons fcitx5-mozc
+exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-git
 
 success "Fcitx5 installed."
 
@@ -288,10 +284,8 @@ section "Step 7/8" "Fastfetch"
 exe pacman -S --noconfirm --needed fastfetch
 success "Fastfetch installed."
 
-log "Module 02 completed."
-
 # ------------------------------------------------------------------------------
-# 9. flatpak
+# 8. flatpak
 # ------------------------------------------------------------------------------
 # 第九步：Flatpak 配置
 # Flatpak 是一个跨发行版的应用程序打包格式
@@ -320,3 +314,5 @@ if [ "$IS_CN_ENV" = true ]; then
 else
   log "Using Global Sources."
 fi
+
+log "Module 02 completed."

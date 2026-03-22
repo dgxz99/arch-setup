@@ -1,11 +1,11 @@
 #!/bin/bash
-
+set -e
 # ==============================================================================
 # 04-niri-setup.sh - Niri Desktop (Restored FZF & Robust AUR)
 # ==============================================================================
 # 模块说明：Niri 桌面环境安装
 # ------------------------------------------------------------------------------
-# Niri 是一个现代的 Wayland 合成器，采用类似 PaperWM 的滚动平铺窗口布局
+# Niri 是一个现代的 Wayland 合成器，滚动平铺窗口布局
 #
 # 主要特点：
 #   - 滚动平铺窗口管理 (非传统的平铺/浮动/堆叠)
@@ -14,13 +14,13 @@
 #
 # 安装内容：
 #   1. 核心组件 (niri, xdg-portal, fuzzel, kitty)
-#   2. 文件管理器 (Nautilus + GNOME 工具)
+#   2. 文件管理器 (Nautilus)
 #   3. 可选依赖 (FZF 交互选择)
-#   4. 点文件配置
+#   4. 点文件配置 (智能递归软链接)
 #   5. TTY 自动登录
 #
 # 注意：
-#   - 如果已安装其他显示管理器 (SDDM/GDM)，会跳过自动登录
+#   - 如果已安装其他显示管理器 (SDDM/GDM 等)，会跳过自动登录
 #   - 安装失败时会提供恢复选项
 # ==============================================================================
 
@@ -32,11 +32,11 @@ source "$SCRIPT_DIR/00-utils.sh"
 DEBUG=${DEBUG:-0}
 CN_MIRROR=${CN_MIRROR:-0}
 # 恢复脚本路径 - 安装失败时用于回滚
-UNDO_SCRIPT="$SCRIPT_DIR/niri-undochange.sh"
+UNDO_SCRIPT="$SCRIPT_DIR/de-undochange.sh"
 
 check_root
 
-# --- [辅助函数] ---
+# --- [HELPER FUNCTIONS] ---
 
 
 # 2. Critical Failure Handler (The "Big Red Box")
@@ -70,6 +70,7 @@ critical_failure_handler() {
     read -p "Select an option [1-3]: " -r choice
     case "$choice" in
     1)
+      # Option 1: Restore Snapshot
       # 选项 1: 执行恢复脚本回滚更改
       if [ -f "$UNDO_SCRIPT" ]; then
         warn "Executing recovery script..."
@@ -81,6 +82,7 @@ critical_failure_handler() {
       fi
       ;;
     2)
+      # Option 2: Re-run Script
       # 选项 2: 重新运行安装脚本
       # exec 替换当前进程，避免嵌套
       warn "Restarting installation script..."
@@ -89,6 +91,7 @@ critical_failure_handler() {
       exec "$0" "$@"
       ;;
     3)
+      # Option 3: Exit
       # 选项 3: 直接退出
       warn "User chose to abort."
       warn "Please fix the issue manually before re-running."
@@ -115,21 +118,23 @@ ensure_package_installed() {
   local attempt=1
   local install_success=false
 
+  # 1. Check if already installed
   # 1. 检查是否已安装
   if pacman -Q "$pkg" &>/dev/null; then
     return 0
   fi
 
+  # 2. Retry Loop
   # 2. 重试循环
   while [ $attempt -le $max_attempts ]; do
     if [ $attempt -gt 1 ]; then
       warn "Retrying '$pkg' ($context)... (Attempt $attempt/$max_attempts)"
-      sleep 3 # 冷却时间，等待网络或镜像恢复
+      sleep 3 # Cooldown 冷却时间，等待网络或镜像恢复
     else
       log "Installing '$pkg' ($context)..."
     fi
 
-    # 尝试安装 - 使用 yay 统一处理官方仓库和 AUR
+    # Try installation - 使用 yay 统一处理官方仓库和 AUR
     if as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
       install_success=true
       break
@@ -140,6 +145,7 @@ ensure_package_installed() {
     ((attempt++))
   done
 
+  # 3. Final Verification
   # 3. 最终验证 - 确认包确实已安装
   if [ "$install_success" = true ] && pacman -Q "$pkg" &>/dev/null; then
     success "Installed '$pkg'."
@@ -165,7 +171,6 @@ trap 'critical_failure_handler "Script Error at Line $LINENO"' ERR
 # ==============================================================================
 # 第一步：识别用户和检查显示管理器
 # Niri 默认使用 TTY 自动登录，但如果已有 DM 则会冲突
-
 log "Identifying user..."
 DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
 TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
@@ -174,7 +179,8 @@ info_kv "Target" "$TARGET_USER"
 
 # DM Check - 检查是否已安装显示管理器
 # 如果存在，则跳过 TTY 自动登录配置
-KNOWN_DMS=("gdm" "sddm" "lightdm" "lxdm" "slim" "xorg-xdm" "ly" "greetd")
+# 注意：此版本比原始版多添加了 plasma-login-manager
+KNOWN_DMS=("gdm" "sddm" "lightdm" "lxdm" "slim" "xorg-xdm" "ly" "greetd" "plasma-login-manager")
 SKIP_AUTOLOGIN=false
 DM_FOUND=""
 for dm in "${KNOWN_DMS[@]}"; do
@@ -205,10 +211,9 @@ fi
 #   - fuzzel: 应用程序启动器
 #   - kitty: 终端模拟器
 #   - firefox: 浏览器
-#   - libnotify: 桶面通知库
+#   - libnotify: 桃面通知库
 #   - mako: Wayland 通知守护进程
 #   - polkit-gnome: 权限认证代理
-
 section "Step 1/9" "Core Components"
 PKGS="niri xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome"
 exe pacman -S --noconfirm --needed $PKGS
@@ -225,31 +230,57 @@ exe chmod 755 "$POL_DIR" && exe chmod 644 "$POL_DIR/policies.json"
 # STEP 3: File Manager
 # ==============================================================================
 # 第三步：文件管理器
-# Nautilus (GNOME Files) 作为默认文件管理器
-# 还包含一些 GNOME 工具：
-#   - ffmpegthumbnailer: 视频缩略图生成
-#   - gvfs-smb: SMB/CIFS 网络共享支持
+# 安装 Nautilus：
+#   - nautilus: GNOME 文件管理器 (主要)
 #   - nautilus-open-any-terminal: 右键打开终端扩展
+#   - ffmpegthumbnailer: 视频缩略图生成
+#   - poppler-glib: PDF 渲染库
+#   - webp-pixbuf-loader: WebP 图片支持
 #   - file-roller: 压缩包管理器
-#   - gnome-keyring: 密码管理
-#   - gst-plugins: GStreamer 插件 (媒体预览)
+#   - gvfs-smb: SMB/CIFS 网络共享支持
+#   - gvfs-mtp: MTP 设备支持[USB手机]
+#   - gvfs-gphoto2: 数码相机支持
+#   - libgsf: 结构化文件支持 [用于生成旧版 MS Office 文档(.doc/.xls)和 EPUB 电子书的缩略图]
+#   - gst-plugins-base: GStreamer 基础多媒体插件 [文件管理器调用音频/视频组件的核心依赖]
+#   - gst-plugins-good: GStreamer 优质多媒体插件 [提供对 MP4、MKV、FLAC 等常见高质量音视频格式的读取和预览支持]
+#   - gst-libav: GStreamer 影音解码器 [底层调用 FFmpeg，提供对 H.264/H.265 等复杂编码的全面解码，确保绝大多数视频都能正常刷出缩略图]
 
 section "Step 2/9" "File Manager"
-exe pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus
+exe pacman -S --noconfirm --needed \
+    nautilus \
+    nautilus-open-any-terminal \
+    ffmpegthumbnailer \
+    poppler-glib \
+    webp-pixbuf-loader \
+    file-roller \
+    gnome-keyring \
+    gvfs-smb \
+    gvfs-mtp \
+    gvfs-gphoto2 \
+    libgsf \
+    gst-plugins-base gst-plugins-good gst-libav
 
 # 创建 gnome-terminal 软链接指向 kitty
-# 某些应用会硬编码调用 gnome-terminal
-if [ ! -f /usr/bin/gnome-terminal ] || [ -L /usr/bin/gnome-terminal ]; then
-  exe ln -sf /usr/bin/kitty /usr/bin/gnome-terminal
+# 某些应用会硬编码调用 gnome-terminal，可以使用这样的方式将其重定向到 kitty
+# if [ ! -f /usr/bin/gnome-terminal ] || [ -L /usr/bin/gnome-terminal ]; then
+#   exe ln -sf /usr/bin/kitty /usr/bin/gnome-terminal
+# fi
+# 这里选择使用xdg-terminal-exec脚本来重定向终端调用，避免全局替换可能带来的兼容性问题
+exe pacman -S --noconfirm --needed xdg-terminal-exec
+XDG_TERM_LIST="$HOME/.config/xdg-terminals.list"
+if ! grep -q "^kitty\.desktop$" "$XDG_TERM_LIST" 2>/dev/null; then
+    echo "kitty.desktop" > "$XDG_TERM_LIST"
+    echo "已将 Kitty 设置为 xdg-terminal-exec 默认终端"
 fi
 
+# Nautilus Nvidia/Input Fix
 # Nautilus 的 NVIDIA/输入法修复
 configure_nautilus_user
 
-# 创建临时 sudo 免密码文件 (AUR 安装需要)
 section "Step 3/9" "Temp sudo file"
 
-SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
+# 创建临时 sudo 免密码文件 (AUR 安装需要)
+SUDO_TEMP_FILE="/etc/sudoers.d/99_daguo_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 log "Temp sudo file created..."
@@ -259,7 +290,6 @@ log "Temp sudo file created..."
 # 第四步：依赖包安装 (带 FZF 交互选择)
 # 从 niri-applist.txt 读取预定义的包列表
 # 用户可以通过 FZF 交互式选择要安装的包
-
 section "Step 4/9" "Dependencies"
 LIST_FILE="$PARENT_DIR/niri-applist.txt"
 
@@ -267,17 +297,16 @@ LIST_FILE="$PARENT_DIR/niri-applist.txt"
 command -v fzf &>/dev/null || pacman -S --noconfirm fzf >/dev/null 2>&1
 
 if [ -f "$LIST_FILE" ]; then
-  # 读取包列表，过滤注释和空行
   mapfile -t DEFAULT_LIST < <(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed 's/#.*//; s/AUR://g' | xargs -n1)
 
   if [ ${#DEFAULT_LIST[@]} -eq 0 ]; then
     warn "App list is empty. Skipping."
     PACKAGE_ARRAY=()
   else
-    # 60 秒超时，用户可按任意键进入自定义选择
     echo -e "\n   ${H_YELLOW}>>> Default installation in 60s. Press ANY KEY to customize...${NC}"
 
     if read -t 60 -n 1 -s -r; then
+      # --- [RESTORED] Original FZF Selection Logic ---
       # --- [恢复的] 原始 FZF 选择逻辑 ---
       clear
       log "Loading package list..."
@@ -327,12 +356,12 @@ if [ -f "$LIST_FILE" ]; then
       fi
       # -----------------------------------------------
     else
-      # 超时，使用默认全部安装
       log "Auto-confirming ALL packages."
       PACKAGE_ARRAY=("${DEFAULT_LIST[@]}")
     fi
   fi
 
+  # --- Installation Loop ---
   # --- 安装循环 ---
   # 分两阶段：
   #   1. 批量安装官方仓库包 (快速)
@@ -350,17 +379,19 @@ if [ -f "$LIST_FILE" ]; then
       [[ "$pkg" == "AUR:"* ]] && AUR_LIST+=("${pkg#AUR:}") || BATCH_LIST+=("$pkg")
     done
 
+    # 1. Batch Install Repo Packages
     # 1. 批量安装官方仓库包
     if [ ${#BATCH_LIST[@]} -gt 0 ]; then
       log "Phase 1: Batch Installing Repo Packages..."
       as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "${BATCH_LIST[@]}" || true
 
-      # 验证每个包是否安装成功
+      # Verify Each - 逐一验证每个包是否安装成功
       for pkg in "${BATCH_LIST[@]}"; do
         ensure_package_installed "$pkg" "Repo"
       done
     fi
 
+    # 2. Sequential AUR Install
     # 2. 顺序安装 AUR 包
     if [ ${#AUR_LIST[@]} -gt 0 ]; then
       log "Phase 2: Installing AUR Packages (Sequential)..."
@@ -369,8 +400,8 @@ if [ -f "$LIST_FILE" ]; then
       done
     fi
 
-    # Waybar 回退安装
-    # 如果 waybar 不在列表中但配置文件需要，安装官方版本
+    # Waybar fallback
+    # Waybar 回退安装，如果 waybar 不在列表中但配置文件需要，安装官方版本
     if ! command -v waybar &>/dev/null; then
       warn "Waybar missing. Installing stock..."
       exe pacman -S --noconfirm --needed waybar
@@ -386,112 +417,137 @@ fi
 # STEP 6: Dotfiles
 # ==============================================================================
 # 第五步：部署点文件
-# 从 Git 仓库克隆配置文件并应用到用户家目录
-
+# 从本地 dotfiles 目录直接复制配置文件到用户家目录
+# 先复制 common (公共配置)，再复制 niri (桌面特有配置)
 section "Step 5/9" "Deploying Dotfiles"
 
-# Git 仓库地址 - GitHub 主源，Gitee 备用
-REPO_GITHUB="https://github.com/SHORiN-KiWATA/ShorinArchExperience-ArchlinuxGuide.git"
-REPO_GITEE="https://gitee.com/shorinkiwata/ShorinArchExperience-ArchlinuxGuide.git"
-TEMP_DIR="/tmp/shorin-repo"
-rm -rf "$TEMP_DIR"
+# 配置文件目录
+COMMON_DOTFILES_DIR="$PARENT_DIR/dotfiles/common"
+NIRI_DOTFILES_DIR="$PARENT_DIR/dotfiles/niri"
 
-log "Cloning configuration..."
-# 先尝试 GitHub，失败则使用 Gitee
-if ! as_user git clone --depth 1 "$REPO_GITHUB" "$TEMP_DIR"; then
-  warn "GitHub failed. Trying Gitee..."
-  rm -rf "$TEMP_DIR"
-  if ! as_user git clone "$REPO_GITEE" "$TEMP_DIR"; then
-    critical_failure_handler "Failed to clone dotfiles from any source."
-  fi
+# 1. 确保目标目录存在
+log "Ensuring target directories exist..."
+as_user mkdir -p "$HOME_DIR/.config"
+as_user mkdir -p "$HOME_DIR/.local/share"
+as_user mkdir -p "$HOME_DIR/.local/bin"
+
+# 2. 备份现有配置
+log "Backing up existing configs..."
+if [ -d "$HOME_DIR/.config" ]; then
+  as_user tar -czf "$HOME_DIR/config_backup_$(date +%s).tar.gz" -C "$HOME_DIR" .config 2>/dev/null || true
 fi
 
-if [ -d "$TEMP_DIR/dotfiles" ]; then
-  # 过滤排除项 - 根据 exclude-dotfiles.txt 删除不需要的配置
-  if [ "$TARGET_USER" != "shorin" ]; then
-    EXCLUDE_FILE="$PARENT_DIR/exclude-dotfiles.txt"
-    if [ -f "$EXCLUDE_FILE" ]; then
-      log "Processing exclusions..."
-      while IFS= read -r item; do
-        item=$(echo "$item" | tr -d '\r' | xargs)
-        [ -n "$item" ] && [[ ! "$item" =~ ^# ]] && rm -rf "$TEMP_DIR/dotfiles/.config/$item"
-      done <"$EXCLUDE_FILE"
-    fi
-  fi
-
-  # 备份并应用配置
-  log "Backing up & Applying..."
-  # 备份现有 .config 目录
-  as_user tar -czf "$HOME_DIR/config_backup_$(date +%s).tar.gz" -C "$HOME_DIR" .config
-  # 复制新配置
-  as_user cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
-
-  # 后处理 - 清理用户特定配置
-  if [ "$TARGET_USER" != "shorin" ]; then
-    # 清空显示器配置 (需要用户自己配置)
-    as_user truncate -s 0 "$HOME_DIR/.config/niri/output.kdl" 2>/dev/null
-    
-    # 更新 GTK 书签中的用户名
-    BOOKMARKS_FILE="$HOME_DIR/.config/gtk-3.0/bookmarks"
-    
-    if [ -f "$BOOKMARKS_FILE" ]; then
-        # 将文件中的 "shorin" 替换为当前目标用户名
-        as_user sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
-        log "Updated GTK bookmarks path from 'shorin' to '$TARGET_USER'."
-    fi
-  fi
-
-  # 修复 GTK4 主题软链接
-  GTK4="$HOME_DIR/.config/gtk-4.0"
-  THEME="$HOME_DIR/.themes/adw-gtk3-dark/gtk-4.0"
-  as_user rm -f "$GTK4/gtk.css" "$GTK4/gtk-dark.css"
-  as_user ln -sf "$THEME/gtk-dark.css" "$GTK4/gtk-dark.css"
-  as_user ln -sf "$THEME/gtk.css" "$GTK4/gtk.css"
-
-  # Flatpak 主题配置
-  if command -v flatpak &>/dev/null; then
-    # 允许 Flatpak 应用访问主题和字体
-    as_user flatpak override --user --filesystem="$HOME_DIR/.themes"
-    as_user flatpak override --user --filesystem=xdg-config/gtk-4.0
-    as_user flatpak override --user --filesystem=xdg-config/gtk-3.0
-    as_user flatpak override --user --env=GTK_THEME=adw-gtk3-dark
-    as_user flatpak override --user --filesystem=xdg-config/fontconfig
-  fi
-  success "Dotfiles Applied."
+# 3. 复制公共配置 (common)
+log "Copying common dotfiles..."
+if [ -d "$COMMON_DOTFILES_DIR" ]; then
+  cp -rf "$COMMON_DOTFILES_DIR/." "$HOME_DIR/"
+  success "Common dotfiles copied."
 else
-  warn "Dotfiles missing in temp directory."
+  warn "Common dotfiles directory not found: $COMMON_DOTFILES_DIR"
 fi
 
+# 4. 复制 Niri 特有配置 (后复制，覆盖公共配置中的同名文件)
+log "Copying Niri dotfiles..."
+if [ -d "$NIRI_DOTFILES_DIR" ]; then
+  cp -rf "$NIRI_DOTFILES_DIR/." "$HOME_DIR/"
+  success "Niri dotfiles copied."
+else
+  warn "Niri dotfiles directory not found: $NIRI_DOTFILES_DIR"
+  critical_failure_handler "Niri dotfiles not found."
+fi
+
+# 5. 修复权限
+log "Fixing permissions..."
+chown -R "$TARGET_USER:$TARGET_USER" "$HOME_DIR/.config"
+chown -R "$TARGET_USER:$TARGET_USER" "$HOME_DIR/.local"
+
+# 确保 .local/bin 下的脚本有执行权限
+if [ -d "$HOME_DIR/.local/bin" ]; then
+  chmod -R +x "$HOME_DIR/.local/bin"
+fi
+
+# 6. 后处理
+OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
+if [ "$TARGET_USER" != "shorin" ]; then
+  # 创建空的显示器配置文件 (需要用户自己配置)
+  as_user touch "$OUTPUT_KDL"
+
+  # 修复 GTK Bookmarks (替换用户名)
+  BOOKMARKS_FILE="$HOME_DIR/.config/gtk-3.0/bookmarks"
+  if [ -f "$BOOKMARKS_FILE" ]; then
+    sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
+    log "Updated GTK bookmarks."
+  fi
+else
+  # shorin 用户使用示例配置
+  OUTPUT_EXAMPLE_KDL="$HOME_DIR/.config/niri/output-example.kdl"
+  if [ -f "$OUTPUT_EXAMPLE_KDL" ]; then
+    as_user cp "$OUTPUT_EXAMPLE_KDL" "$OUTPUT_KDL"
+  fi
+fi
+
+# GTK Theme Symlinks (Fix internal links)
+# GTK 主题软链接修复
+GTK4="$HOME_DIR/.config/gtk-4.0"
+THEME="$HOME_DIR/.local/share/themes/adw-gtk3-dark/gtk-4.0"
+if [ -d "$GTK4" ] && [ -d "$THEME" ]; then
+    as_user rm -f "$GTK4/gtk.css" "$GTK4/gtk-dark.css"
+    as_user ln -sf "$THEME/gtk-dark.css" "$GTK4/gtk-dark.css"
+    as_user ln -sf "$THEME/gtk.css" "$GTK4/gtk.css"
+fi
+
+# Flatpak overrides
+# 允许 Flatpak 应用访问主题和字体
+if command -v flatpak &>/dev/null; then
+  as_user flatpak override --user --filesystem=xdg-data/themes
+  as_user flatpak override --user --filesystem="$HOME_DIR/.themes"
+  as_user flatpak override --user --filesystem=xdg-config/gtk-4.0
+  as_user flatpak override --user --filesystem=xdg-config/gtk-3.0
+  as_user flatpak override --user --env=GTK_THEME=adw-gtk3-dark
+  as_user flatpak override --user --filesystem=xdg-config/fontconfig
+fi
+
+success "Dotfiles deployed."
 
 # ==============================================================================
-# STEP 7: Wallpapers & Templates
+# STEP 7: Wallpapers
 # ==============================================================================
-# 第六步：壁纸和模板文件
-# 复制壁纸到用户的 Pictures 目录
-# 创建 Templates 文件模板
-
+# 第六步：壁纸配置
+# 直接复制壁纸到用户 Pictures 目录
 section "Step 6/9" "Wallpapers"
-if [ -d "$TEMP_DIR/wallpapers" ]; then
-  as_user mkdir -p "$HOME_DIR/Pictures/Wallpapers"
-  as_user cp -rf "$TEMP_DIR/wallpapers/." "$HOME_DIR/Pictures/Wallpapers/"
-  # 创建模板文件 - 用于右键新建文件
-  as_user touch "$HOME_DIR/Templates/new"
-  as_user touch "$HOME_DIR/Templates/new.sh"
-  as_user echo "#!/bin/bash" >> "$HOME_DIR/Templates/new.sh"
-  success "Installed."
-fi
-# 清理临时目录
-rm -rf "$TEMP_DIR"
 
+WALLPAPERS_SRC="$PARENT_DIR/wallpapers"
+WALLPAPERS_DEST="$HOME_DIR/Pictures/Wallpapers"
+
+if [ -d "$WALLPAPERS_SRC" ]; then
+  log "Copying wallpapers..."
+  as_user mkdir -p "$HOME_DIR/Pictures"
+  # 删除旧的壁纸目录（可能是软链接）
+  rm -rf "$WALLPAPERS_DEST"
+  # 复制壁纸
+  cp -rf "$WALLPAPERS_SRC" "$WALLPAPERS_DEST"
+  chown -R "$TARGET_USER:$TARGET_USER" "$WALLPAPERS_DEST"
+  success "Wallpapers copied."
+else
+  warn "Wallpapers directory not found: $WALLPAPERS_SRC"
+fi
+
+# 创建 Templates 模板文件 - 用于右键新建文件
+as_user mkdir -p "$HOME_DIR/Templates"
+as_user touch "$HOME_DIR/Templates/new"
+echo "#!/bin/bash" | as_user tee "$HOME_DIR/Templates/new.sh" >/dev/null
+as_user chmod +x "$HOME_DIR/Templates/new.sh"
+
+# === remove gtk bottom =======
+# 移除 GTK 窗口底部标题栏按钮，保留关闭按鈕
+as_user gsettings set org.gnome.desktop.wm.preferences button-layout ":close"
 # ==============================================================================
 # STEP 8: Hardware Tools
 # ==============================================================================
 # 第七步：硬件工具配置
 # 配置一些硬件相关的服务和权限
-
 section "Step 7/9" "Hardware"
-# ddcutil - 显示器亮度控制工具
-# 需要将用户加入 i2c 组
+# ddcutil - 显示器亮度控制工具，需要将用户加入 i2c 组
 if pacman -Q ddcutil &>/dev/null; then
   gpasswd -a "$TARGET_USER" i2c
   # 加载 i2c-dev 内核模块
@@ -507,7 +563,6 @@ success "Tools configured."
 # STEP 9: Cleanup & Auto-Login
 # ==============================================================================
 # 第八步：清理和配置自动登录
-
 section "Final" "Cleanup & Boot"
 # 删除临时 sudo 免密码文件
 rm -f "$SUDO_TEMP_FILE"

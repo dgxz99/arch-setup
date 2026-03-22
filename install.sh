@@ -1,7 +1,8 @@
 #!/bin/bash
 
+export SHELL=$(command -v bash)
 # ==============================================================================
-# Shorin Arch Setup - 主安装程序 (v1.1)
+# Arch Setup - 主安装程序 (v1.1)
 # ==============================================================================
 
 # 定义基础目录变量
@@ -21,7 +22,7 @@ fi
 # --- 退出时的全局清理 ---
 # 定义清理函数，删除临时存储用户名的文件
 cleanup() {
-    rm -f "/tmp/shorin_install_user"
+    rm -f "/tmp/daguo_install_user"
 }
 # 设置 trap ，在脚本退出 (EXIT) 时自动执行 cleanup 函数
 trap cleanup EXIT
@@ -48,33 +49,32 @@ chmod +x "$SCRIPTS_DIR"/*.sh
 # 定义三个不同的 Banner 函数，用于显示不同的 ASCII 艺术标题
 banner1() {
 cat << "EOF"
-   _____ __  ______  ____  _____   __
-  / ___// / / / __ \/ __ \/  _/ | / /
-  \__ \/ /_/ / / / / /_/ // //  |/ / 
- ___/ / __  / /_/ / _, _// // /|  /  
-/____/_/ /_/\____/_/ |_/___/_/ |_/   
+    ____  ___   ________ ______
+   / __ \/   | / ____/ / / / __ \
+  / / / / /| |/ / __/ / / / / / /
+ / /_/ / ___ / /_/ / /_/ / /_/ /
+/_____/_/  |_\____/\____/\____/
 EOF
 }
 
 banner2() {
 cat << "EOF"
-  ██████  ██   ██  ██████  ███████ ██ ███    ██ 
-  ██      ██   ██ ██    ██ ██   ██    ██ ██  ██ 
-  ███████ ███████ ██    ██ ██████  ██ ██ ██  ██ 
-       ██ ██   ██ ██    ██ ██   ██ ██ ██  ██ ██ 
-  ██████  ██   ██  ██████  ██   ██ ██ ██   ████ 
+ ██████   █████   ██████  ██    ██  ██████  
+ ██   ██ ██   ██ ██       ██    ██ ██    ██ 
+ ██   ██ ███████ ██   ███ ██    ██ ██    ██ 
+ ██   ██ ██   ██ ██    ██ ██    ██ ██    ██ 
+ ██████  ██   ██  ██████   ██████   ██████  
 EOF
 }
 
 banner3() {
 cat << "EOF"
-   ______ __ __   ___   ____   ____  _   _ 
-  / ___/|  |  | /   \ |    \ |    || \ | |
- (   \_ |  |  ||     ||  D  ) |  | |  \| |
-  \__  ||  _  ||  O  ||    /  |  | |     |
-  /  \ ||  |  ||     ||    \  |  | | |\  |
-  \    ||  |  ||     ||  .  \ |  | | | \ |
-   \___||__|__| \___/ |__|\_||____||_| \_|
+   ___   ___   _______ __  __  ___  
+  |   \ / _ \ / ___/  |  ||  |/   \ 
+  | |  ) |_| (  |_ |  |  ||  |     |
+  | |  )|   ||   _||  |  ||  |  O  |
+  | |_/ | _ ||  |_ |  `  ||  |     |
+  |___/ |/ \||_____|\____/|__|\___ |
 EOF
 }
 
@@ -103,12 +103,9 @@ select_desktop() {
     # 使用 | 分隔显示文本和脚本内部使用的标识符
     local OPTIONS=(
         "No Desktop |none"
-        "Shorin's Niri |niri"
+        "Daguo's Niri |niri"
         "KDE Plasma |kde"
         "GNOME |gnome"
-        "Quickshell: End4--illogical-impulse (Hyprland)|end4"
-        "Quickshell: DMS--DankMaterialShell (Niri or Hyprland)|dms"
-        "Quickshell: Caelestia (Hyprland)|caelestia"
     )
     
     # 2. 绘制菜单 (半开放式风格)
@@ -160,7 +157,7 @@ sys_dashboard() {
     echo -e "${H_BLUE}╔════ SYSTEM DIAGNOSTICS ══════════════════════════════╗${NC}"
     echo -e "${H_BLUE}║${NC} ${BOLD}Kernel${NC}   : $(uname -r)" # 显示内核版本
     echo -e "${H_BLUE}║${NC} ${BOLD}User${NC}     : $(whoami)"   # 显示当前用户 (应为 root)
-    echo -e "${H_BLUE}║${NC} ${BOLD}Desktop${NC}  : ${H_MAGENTA}${DESKTOP_ENV^^}${NC}" # 显示选择的桌面环境 (转换为大写)
+    echo -e "${H_BLUE}║${NC} ${BOLD}Desktop${NC}  : ${H_CYAN}${DESKTOP_ENV^^}${NC}" # 显示选择的桌面环境 (转换为大写)
     
     # 根据网络模式显示状态
     if [ "$CN_MIRROR" == "1" ]; then
@@ -207,15 +204,6 @@ case "$DESKTOP_ENV" in
     kde)
         BASE_MODULES+=("04b-kdeplasma-setup.sh")
         ;;
-    end4)
-        BASE_MODULES+=("04e-illogical-impulse-end4-quickshell.sh")
-        ;;
-    dms)
-        BASE_MODULES+=("04c-dms-quickshell.sh")
-        ;;
-    caelestia)
-        BASE_MODULES+=("04g-caelestia-quickshell.sh")
-        ;;
     gnome)
         BASE_MODULES+=("04d-gnome.sh")
         ;;
@@ -255,8 +243,8 @@ else
     exe pacman -S --noconfirm --needed reflector
 
     CURRENT_TZ=$(readlink -f /etc/localtime)
-    # 设置 reflector 参数：最近24小时、最快10个、按分数排序、保存路径、详细输出
-    REFLECTOR_ARGS="-a 24 -f 10 --sort score --save /etc/pacman.d/mirrorlist --verbose"
+    # 设置 reflector 参数：最近12小时、最快10个、按速率排序、保存路径、详细输出
+    REFLECTOR_ARGS="-a 12 -f 10 --sort rate --save /etc/pacman.d/mirrorlist --verbose"
 
     # 检测是否为中国时区 (Shanghai)
     if [[ "$CURRENT_TZ" == *"Shanghai"* ]]; then
@@ -382,7 +370,7 @@ section "Completion" "System Cleanup"
 # 清理安装过程中产生的中间快照，只保留关键节点
 clean_intermediate_snapshots() {
     local config_name="$1"     # 参数：snapper 配置名 (如 root, home)
-    local start_marker="Before Shorin Setup" # 定义起始标记
+    local start_marker="Before Daguo Setup" # 定义起始标记
     
     # 定义需要保留的快照描述白名单
     local KEEP_MARKERS=(
@@ -477,20 +465,43 @@ exe pacman -Sc --noconfirm # 清理 pacman 缓存
 clean_intermediate_snapshots "root"
 clean_intermediate_snapshots "home"
 
+# Detect user ID 1000 or prompt manually
+DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
+TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
+HOME_DIR="/home/$TARGET_USER"
 # --- 3. 删除安装文件 ---
-# 如果脚本位于 /root/shorin-arch-setup，则视为安装后垃圾进行删除
-if [ -d "/root/shorin-arch-setup" ]; then
+# 如果脚本位于 /root/arch-setup，则视为安装后垃圾进行删除
+if [ -d "/root/arch-setup" ]; then
     log "Removing installer from /root..."
     cd /
-    rm -rfv /root/shorin-arch-setup
+    rm -rfv /root/arch-setup
+
+if [ -d "$HOME_DIR/arch-setup" ]; then
+    log "Removing installer from $HOME_DIR/arch-setup"
+    rm -rfv $HOME_DIR/arch-setup
 else
-    log "Repo cleanup skipped (not in /root/shorin-arch-setup)."
-    log "If you cloned this manually, please remove the folder yourself."
+    log "Repo cleanup skipped."
+    log "please remove the folder yourself."
+fi
+
+# 清理无用的下载残留
+for dir in /var/cache/pacman/pkg/download-*/; do
+    # 检查目录是否存在
+    if [ -d "$dir" ]; then
+        echo "Found residual directory: $dir, cleaning up..."
+        rm -rf "$dir"
+    fi
+done
+
+#--- 清理nmcli残留的连接配置
+if pacman -Qi networkmanager &> /dev/null; then
+
+    rm -rf /etc/NetworkManager/system-connections/* 
 fi
 
 # --- 4. 最终 GRUB 更新 ---
 log "Regenerating final GRUB configuration..."
-exe grub-mkconfig -o /boot/grub/grub.cfg
+exe env LANG=en_US.UTF-8 grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- 完成 ---
 clear
@@ -506,8 +517,8 @@ if [ -f "$STATE_FILE" ]; then rm "$STATE_FILE"; fi
 # --- 归档日志 ---
 log "Archiving log..."
 # 获取最终的普通用户名
-if [ -f "/tmp/shorin_install_user" ]; then
-    FINAL_USER=$(cat /tmp/shorin_install_user)
+if [ -f "/tmp/daguo_install_user" ]; then
+    FINAL_USER=$(cat /tmp/daguo_install_user)
 else
     # 如果临时文件不存在，尝试从 passwd 猜一个 UID 1000 的用户
     FINAL_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
@@ -517,9 +528,9 @@ fi
 if [ -n "$FINAL_USER" ]; then
     FINAL_DOCS="/home/$FINAL_USER/Documents"
     mkdir -p "$FINAL_DOCS"
-    cp "$TEMP_LOG_FILE" "$FINAL_DOCS/log-shorin-arch-setup.txt"
+    cp "$TEMP_LOG_FILE" "$FINAL_DOCS/log-daguo-arch-setup.txt"
     chown -R "$FINAL_USER:$FINAL_USER" "$FINAL_DOCS"
-    echo -e "   ${H_BLUE}●${NC} Log Saved     : ${BOLD}$FINAL_DOCS/log-shorin-arch-setup.txt${NC}"
+    echo -e "   ${H_BLUE}●${NC} Log Saved     : ${BOLD}$FINAL_DOCS/log-daguo-arch-setup.txt${NC}"
 fi
 
 # --- 重启倒计时 ---
