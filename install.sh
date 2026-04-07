@@ -47,109 +47,176 @@ chmod +x "$SCRIPTS_DIR"/*.sh
 
 # --- ASCII Banner 艺术字 ---
 # 定义三个不同的 Banner 函数，用于显示不同的 ASCII 艺术标题
-banner1() {
-cat << "EOF"
-    ____  ___   ________ ______
-   / __ \/   | / ____/ / / / __ \
-  / / / / /| |/ / __/ / / / / / /
- / /_/ / ___ / /_/ / /_/ / /_/ /
-/_____/_/  |_\____/\____/\____/
-EOF
-}
-
-banner2() {
-cat << "EOF"
- ██████   █████   ██████  ██    ██  ██████  
- ██   ██ ██   ██ ██       ██    ██ ██    ██ 
- ██   ██ ███████ ██   ███ ██    ██ ██    ██ 
- ██   ██ ██   ██ ██    ██ ██    ██ ██    ██ 
- ██████  ██   ██  ██████   ██████   ██████  
-EOF
-}
-
-banner3() {
-cat << "EOF"
-   ___   ___   _______ __  __  ___  
-  |   \ / _ \ / ___/  |  ||  |/   \ 
-  | |  ) |_| (  |_ |  |  ||  |     |
-  | |  )|   ||   _||  |  ||  |  O  |
-  | |_/ | _ ||  |_ |  `  ||  |     |
-  |___/ |/ \||_____|\____/|__|\___ |
+banner() {
+cat <<'EOF'
+  ██████   █████  ██████  ██    ██  ██████
+  ██   ██ ██   ██ ██   ██ ██    ██ ██    ██
+  ██   ██ ███████ ██   ██ ██    ██ ██    ██
+  ██   ██ ██   ██ ██   ██ ██    ██ ██    ██
+  ██████  ██   ██ ██████   ██████   ██████
 EOF
 }
 
 # 显示 Banner 的函数
 show_banner() {
-    clear  # 清屏
-    local r=$(( $RANDOM % 3 ))  # 生成 0-2 的随机数
-    echo -e "${H_CYAN}"         # 设置颜色为高亮青色
-    # 根据随机数选择一个 banner 显示
-    case $r in
-        0) banner1 ;;
-        1) banner2 ;;
-        2) banner3 ;;
-    esac
-    echo -e "${NC}"             # 重置颜色
-    # 显示版本信息
-    echo -e "${DIM}   :: Arch Linux Automation Protocol :: v1.1 ::${NC}"
-    echo ""
+    # 每次关键菜单前刷新画面，减少旧日志干扰阅读。
+    clear
+    echo -e "${H_CYAN}"
+    banner
+    echo -e "${NC}"
+    echo -e "${DIM}   :: Arch Linux Personal Setup ::${NC}"
+    echo
 }
 
 # --- 桌面环境选择菜单 ---
 select_desktop() {
-    show_banner  # 显示标题
-    
-    # 1. 定义选项数组 (显示名称|内部ID)
-    # 使用 | 分隔显示文本和脚本内部使用的标识符
-    local OPTIONS=(
-        "No Desktop |none"
-        "Daguo's Niri |niri"
-        "KDE Plasma |kde"
-        "GNOME |gnome"
+    if ! command -v fzf &> /dev/null; then
+        echo -e "   ${DIM}Installing fzf for interactive menu...${NC}"
+        pacman -Sy --noconfirm --needed fzf >/dev/null 2>&1
+    fi
+
+    # 当前两个桌面目标，后续扩展可继续按编号段添加。
+    local MENU_ITEMS=(
+        "GNOME|gnome"
+        "Daguo DMS + Niri|dms-niri"
+    )
+
+    while true; do
+        show_banner
+        
+        local fzf_list=()
+        local idx=1
+        for item in "${MENU_ITEMS[@]}"; do
+            [[ -z "$item" ]] && continue
+            
+            local name="${item%%|*}"
+            local val="${item##*|}"
+            local colored_idx="${H_CYAN}[${idx}]${NC}"
+            
+            if [ $idx -lt 10 ]; then
+                fzf_list+=("${colored_idx}   ${name}\t${val}\t${name}")
+            else
+                fzf_list+=("${colored_idx}  ${name}\t${val}\t${name}")
+            fi
+            ((idx++))
+        done
+        
+        local selected
+        selected=$(printf "%b\n" "${fzf_list[@]}" | sed '/^[[:space:]]*$/d' | fzf \
+            --ansi \
+            --delimiter='\t' \
+            --with-nth=1 \
+            --info=hidden \
+            --layout=reverse \
+            --border="rounded" \
+            --border-label="  Select Desktop Environment  " \
+            --border-label-pos=5 \
+            --color="marker:cyan,pointer:cyan,label:yellow" \
+            --header=" [J/K] Select | [Enter] confirm" \
+            --pointer=">" \
+            --bind 'j:down,k:up,ctrl-c:abort,esc:abort' \
+        --height=~20)
+        
+        local fzf_status=$?
+        
+        if [ $fzf_status -eq 130 ]; then
+            echo -e "\n   ${H_RED}>>> Installation aborted by user.${NC}"
+            exit 130
+        fi
+        
+        if [ -z "$selected" ]; then continue; fi
+        
+        export DESKTOP_ENV="$(echo "$selected" | awk -F'\t' '{print $2}')"
+        local selected_name="$(echo "$selected" | awk -F'\t' '{print $3}')"
+        
+        if [ "$DESKTOP_ENV" == "random" ]; then
+            local POOL=()
+            for item in "${MENU_ITEMS[@]}"; do
+                [[ -z "$item" ]] && continue
+                local oid="${item##*|}"
+                if [[ "$oid" != "none" && "$oid" != "random" ]]; then
+                    POOL+=("$item")
+                fi
+            done
+            
+            local rand_idx=$(( RANDOM % ${#POOL[@]} ))
+            local final_item="${POOL[$rand_idx]}"
+            local final_name="${final_item%%|*}"
+            export DESKTOP_ENV="${final_item##*|}"
+            
+            echo -e "\n   ${H_CYAN}>>> Randomly selected:${NC} ${BOLD}${final_name}${NC}"
+            read -p "$(echo -e "   ${H_YELLOW}Continue with this selection? [Y/n]: ${NC}")" confirm
+            
+            if [[ "${confirm,,}" == "n" ]]; then continue; else break; fi
+        else
+            log "Selected: ${selected_name}"
+            sleep 0.5
+            break
+        fi
+    done
+}
+
+# 可选模块统一放在 installer 中选择，避免把分支判断散落到各个模块内部。
+select_optional_modules() {
+    local OPTIONAL_MENU=(
+        "Windows Dual Boot|80-dualboot.sh"
+        "Flatpak Setup|81-flatpak.sh"
+        "GRUB Theme|82-grub-theme.sh"
+        "Common Apps|90-apps.sh"
     )
     
-    # 2. 绘制菜单 (半开放式风格)
-    # 定义分隔线
-    local HR="──────────────────────────────────────────────────"
+    show_banner
     
-    echo -e "${H_PURPLE}╭${HR}${NC}"
-    echo -e "${H_PURPLE}│${NC} ${BOLD}Choose your Desktop Environment:${NC}"
-    echo -e "${H_PURPLE}│${NC}" # 空行分隔，用于美观
-
-    local idx=1
-    # 遍历选项数组进行显示
-    for opt in "${OPTIONS[@]}"; do
-        local name="${opt%%|*}"  # 截取 | 左边的内容作为显示名称
-        # 打印选项编号和名称
-        echo -e "${H_PURPLE}│${NC}  ${H_CYAN}[${idx}]${NC} ${name}"
-        ((idx++))
+    local fzf_list=()
+    for item in "${OPTIONAL_MENU[@]}"; do
+        local name="${item%%|*}"
+        local val="${item##*|}"
+        fzf_list+=("  ${name}\t${val}")
     done
-    echo -e "${H_PURPLE}│${NC}" # 空行分隔
-    echo -e "${H_PURPLE}╰${HR}${NC}"
-    echo ""
     
-    # 3. 输入处理
-    echo -e "   ${DIM}Waiting for input (Timeout: 2 mins)...${NC}"
-    # 读取用户输入，超时时间 120 秒
-    read -t 120 -p "$(echo -e "   ${H_YELLOW}Select [1-${#OPTIONS[@]}]: ${NC}")" choice
+    # 核心修复：引入 --expect=ctrl-x,enter 来拦截按键动作
+    local selected_raw
+    selected_raw=$(printf "%b\n" "${fzf_list[@]}" | fzf \
+        --multi \
+        --delimiter='\t' \
+        --with-nth=1 \
+        --layout=reverse \
+        --border="rounded" \
+        --border-label="  Select Optional Modules  " \
+        --border-label-pos=5 \
+        --color="marker:cyan,pointer:cyan,label:yellow" \
+        --header=" [TAB]: Toggle | [CTRL-X]: Skip All | [ENTER]: Confirm " \
+        --pointer=">" \
+        --expect=ctrl-x,enter \
+        --bind 'start:select-all,ctrl-a:select-all,ctrl-d:deselect-all,ctrl-c:abort,esc:abort,j:down,k:up' \
+    --height=~20)
     
-    # 检查是否超时或未输入
-    if [ -z "$choice" ]; then
-        echo -e "\n${H_RED}Timeout or no selection.${NC}"
-        exit 1
+    local fzf_status=$?
+    if [ $fzf_status -eq 130 ]; then
+        echo -e "\n   ${H_RED}>>> Installation aborted by user.${NC}"
+        exit 130
     fi
     
-    # 4. 验证输入并提取内部 ID
-    # 检查输入是否为数字，且在有效范围内
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#OPTIONS[@]}" ]; then
-        local selected_opt="${OPTIONS[$((choice-1))]}"  # 获取选中的数组元素
-        export DESKTOP_ENV="${selected_opt##*|}"       # 截取 | 右边的内容作为内部 ID，并导出为环境变量
-        log "Selected: ${selected_opt%%|*}"             # 记录日志
-    else
-        error "Invalid selection."
-        exit 1
+    OPTIONAL_MODULES=()
+    
+    if [ -n "$selected_raw" ]; then
+        # 解析 FZF 输出：第一行是按下的键，后面是选中的内容
+        local key
+        key=$(head -n 1 <<< "$selected_raw")
+        local selected_items
+        selected_items=$(sed '1d' <<< "$selected_raw")
+
+        # 完美解决“回车默认选中光标项”的问题：用户直接按 Ctrl-X 即可退出并清空
+        if [[ "$key" == "ctrl-x" ]]; then
+            log "Skipping all optional modules..."
+            sleep 0.5
+        else
+            if [ -n "$selected_items" ]; then
+                # 利用 awk 过滤掉空行，防止产生空元素
+                mapfile -t OPTIONAL_MODULES < <(echo "$selected_items" | awk -F'\t' '{if ($2 != "") print $2}')
+            fi
+        fi
     fi
-    sleep 0.5
 }
 
 # 显示系统诊断信息的仪表盘函数
@@ -179,52 +246,52 @@ sys_dashboard() {
 
 # --- 主程序执行流程 ---
 
-select_desktop   # 执行桌面选择
-clear            # 清屏
-show_banner      # 显示 Banner
-sys_dashboard    # 显示仪表盘
+select_desktop          # 执行桌面选择
+select_optional_modules # 执行可选模块选择
+clear                   # 清屏
+show_banner             # 显示 Banner
+sys_dashboard           # 显示仪表盘
 
 # 动态构建模块列表
 # 定义所有桌面环境都需要的核心模块
-BASE_MODULES=(
-    "00-btrfs-init.sh"          # BTRFS文件系统初始化 (快照等)
-    "01-base.sh"                # 基础包安装
-    "02-musthave.sh"            # 必备工具安装
-    "02a-dualboot-fix.sh"       # 双系统修复 (如有时钟问题等)
-    "03-user.sh"                # 用户创建与配置
-    "03b-gpu-driver.sh"         # 显卡驱动安装
-    "03c-snapshot-before-desktop.sh" # 安装桌面环境前的系统快照
+MANDATORY_MODULES=(
+    "01-btrfs-init.sh"
+    "02-base.sh"
+    "03-user.sh"
+    "04-gpu-drivers.sh"
+    "05-audio-bluetooth-power.sh"
+    "06-locale-input.sh"
+    "07-snapshot-before-desktop.sh"
 )
+
+ALL_MODULES=("${MANDATORY_MODULES[@]}" "${OPTIONAL_MODULES[@]}")
 
 # 根据选择的桌面环境 (DESKTOP_ENV) 添加特定模块
 case "$DESKTOP_ENV" in
-    niri)
-        BASE_MODULES+=("04-niri-setup.sh")
-        ;;
-    kde)
-        BASE_MODULES+=("04b-kdeplasma-setup.sh")
-        ;;
     gnome)
-        BASE_MODULES+=("04d-gnome.sh")
+        ALL_MODULES+=("20-gnome.sh")
         ;;
-    none)
-        log "Skipping Desktop Environment installation."
+    dms-niri)
+        ALL_MODULES+=("30-dms-niri.sh")
         ;;
     *)
-        warn "Unknown selection, skipping desktop setup."
+        error "Unknown desktop selection: $DESKTOP_ENV"
+        exit 1
         ;;
 esac
 
+ALL_MODULES+=("95-verify.sh" "99-cleanup.sh")
+
+
 # 添加最后的通用模块：GRUB 主题和常用软件
 BASE_MODULES+=("07-grub-theme.sh" "99-apps.sh")
-# 将构建好的模块列表赋值给 MODULES 数组
-MODULES=("${BASE_MODULES[@]}")
+# 使用 mapfile 结合 printf 和 sort -u 来去重并生成最终的模块列表
+mapfile -t MODULES < <(printf "%s\n" "${ALL_MODULES[@]}" | sort -u)
 
-# 如果状态文件不存在，则创建它
 if [ ! -f "$STATE_FILE" ]; then touch "$STATE_FILE"; fi
 
-TOTAL_STEPS=${#MODULES[@]} # 计算总步数
-CURRENT_STEP=0             # 初始化当前步数
+TOTAL_STEPS=${#MODULES[@]}
+CURRENT_STEP=0
 
 log "Initializing installer sequence..."
 sleep 0.5
@@ -232,7 +299,7 @@ sleep 0.5
 # --- Reflector 镜像源优化 (支持状态记忆) ---
 section "Pre-Flight" "Mirrorlist Optimization"
 
-# [修改] 检查是否已经完成过 Reflector 步骤
+# 检查是否已经完成过 Reflector 步骤
 if grep -q "^REFLECTOR_DONE$" "$STATE_FILE"; then
     echo -e "   ${H_GREEN}✔${NC} Mirrorlist previously optimized."
     echo -e "   ${DIM}   Skipping Reflector steps (Resume Mode)...${NC}"
@@ -243,8 +310,8 @@ else
     exe pacman -S --noconfirm --needed reflector
 
     CURRENT_TZ=$(readlink -f /etc/localtime)
-    # 设置 reflector 参数：最近12小时、最快10个、按速率排序、保存路径、详细输出
-    REFLECTOR_ARGS="-a 12 -f 10 --sort rate --save /etc/pacman.d/mirrorlist --verbose"
+    # 设置 reflector 参数: https 协议、最近12小时更新的镜像、最快10个、按速率排序、保存到指定文件、详细输出
+    REFLECTOR_ARGS="--protocol https -a 12 -f 10 --sort rate --save /etc/pacman.d/mirrorlist --verbose"
 
     # 检测是否为中国时区 (Shanghai)
     if [[ "$CURRENT_TZ" == *"Shanghai"* ]]; then
@@ -288,13 +355,11 @@ else
             fi
         else
             warn "Could not detect country. Running global speed test..."
-            exe reflector $REFLECTOR_ARGS
+            exe reflector $REFLECTOR_ARGS --latest 25
         fi
         success "Mirrorlist optimized."
     fi
-    # --- 结束 Reflector 逻辑 ---
-
-    # [修改] 记录成功状态，避免重复询问
+    # 记录成功状态，避免重复询问
     echo "REFLECTOR_DONE" >> "$STATE_FILE"
 fi
 
@@ -360,148 +425,6 @@ for module in "${MODULES[@]}"; do
         exit 1
     fi
 done
-
-# ------------------------------------------------------------------------------
-# 最终清理阶段
-# ------------------------------------------------------------------------------
-section "Completion" "System Cleanup"
-
-# --- 1. 快照清理逻辑 ---
-# 清理安装过程中产生的中间快照，只保留关键节点
-clean_intermediate_snapshots() {
-    local config_name="$1"     # 参数：snapper 配置名 (如 root, home)
-    local start_marker="Before Daguo Setup" # 定义起始标记
-    
-    # 定义需要保留的快照描述白名单
-    local KEEP_MARKERS=(
-        "Before Desktop Environments"
-        "Before Niri Setup"
-    )
-
-    # 如果没有该配置的 snapper 列表，直接返回
-    if ! snapper -c "$config_name" list &>/dev/null; then
-        return
-    fi
-
-    log "Scanning junk snapshots in: $config_name..."
-
-    # 1. 获取起始点快照 ID
-    local start_id
-    start_id=$(snapper -c "$config_name" list --columns number,description | grep -F "$start_marker" | awk '{print $1}' | tail -n 1)
-
-    # 如果找不到起始标记，说明可能不是通过本脚本初始化的，跳过清理以防误删
-    if [ -z "$start_id" ]; then
-        warn "Marker '$start_marker' not found in '$config_name'. Skipping cleanup."
-        return
-    fi
-
-    # 2. 解析白名单，获取需要保留的快照 ID (IDS_TO_KEEP)
-    local IDS_TO_KEEP=()
-    for marker in "${KEEP_MARKERS[@]}"; do
-        local found_id
-        found_id=$(snapper -c "$config_name" list --columns number,description | grep -F "$marker" | awk '{print $1}' | tail -n 1)
-        
-        if [ -n "$found_id" ]; then
-            IDS_TO_KEEP+=("$found_id")
-            log "Found protected snapshot: '$marker' (ID: $found_id)"
-        fi
-    done
-
-    local snapshots_to_delete=()
-    
-    # 3. 扫描并筛选需要删除的快照
-    # 逐行读取 snapper list 输出
-    while IFS= read -r line; do
-        local id
-        local type
-        
-        # Snapper 表格输出通常为: " 100 | pre    | ..."
-        # awk $1=number, $3=type
-        id=$(echo "$line" | awk '{print $1}')
-        type=$(echo "$line" | awk '{print $3}')
-
-        if [[ "$id" =~ ^[0-9]+$ ]]; then
-            # 只处理 ID 大于起始点的快照
-            if [ "$id" -gt "$start_id" ]; then
-                
-                # --- 白名单检查 ---
-                local skip=false
-                for keep in "${IDS_TO_KEEP[@]}"; do
-                    if [[ "$id" == "$keep" ]]; then
-                        skip=true
-                        break
-                    fi
-                done
-                
-                if [ "$skip" = true ]; then
-                    continue
-                fi
-                # -----------------
-
-                # [修改重点] 仅删除 pre 和 post 类型的自动快照
-                # 这样可以保护用户手动创建的 (single) 快照
-                if [[ "$type" == "pre" || "$type" == "post" ]]; then
-                    snapshots_to_delete+=("$id")
-                fi
-            fi
-        fi
-    done < <(snapper -c "$config_name" list --columns number,type)
-
-    # 4. 执行批量删除
-    if [ ${#snapshots_to_delete[@]} -gt 0 ]; then
-        log "Deleting ${#snapshots_to_delete[@]} junk snapshots in '$config_name'..."
-        if exe snapper -c "$config_name" delete "${snapshots_to_delete[@]}"; then
-            success "Cleaned $config_name."
-        fi
-    else
-        log "No junk snapshots found in '$config_name'."
-    fi
-}
-# --- 2. 执行清理 ---
-log "Cleaning Pacman/Yay cache..."
-exe pacman -Sc --noconfirm # 清理 pacman 缓存
-
-# 对 root 和 home 配置执行快照清理
-clean_intermediate_snapshots "root"
-clean_intermediate_snapshots "home"
-
-# Detect user ID 1000 or prompt manually
-DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
-TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
-HOME_DIR="/home/$TARGET_USER"
-# --- 3. 删除安装文件 ---
-# 如果脚本位于 /root/arch-setup，则视为安装后垃圾进行删除
-if [ -d "/root/arch-setup" ]; then
-    log "Removing installer from /root..."
-    cd /
-    rm -rfv /root/arch-setup
-
-if [ -d "$HOME_DIR/arch-setup" ]; then
-    log "Removing installer from $HOME_DIR/arch-setup"
-    rm -rfv $HOME_DIR/arch-setup
-else
-    log "Repo cleanup skipped."
-    log "please remove the folder yourself."
-fi
-
-# 清理无用的下载残留
-for dir in /var/cache/pacman/pkg/download-*/; do
-    # 检查目录是否存在
-    if [ -d "$dir" ]; then
-        echo "Found residual directory: $dir, cleaning up..."
-        rm -rf "$dir"
-    fi
-done
-
-#--- 清理nmcli残留的连接配置
-if pacman -Qi networkmanager &> /dev/null; then
-
-    rm -rf /etc/NetworkManager/system-connections/* 
-fi
-
-# --- 4. 最终 GRUB 更新 ---
-log "Regenerating final GRUB configuration..."
-exe env LANG=en_US.UTF-8 grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- 完成 ---
 clear

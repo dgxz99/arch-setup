@@ -1,27 +1,19 @@
 #!/bin/bash
 
-# ================================================================================
-# undochange.sh - 紧急系统回滚工具（基于 Btrfs Assistant）
-# ================================================================================
-# 用法：sudo ./undochange.sh
-# 描述：使用 btrfs-assistant 将系统回滚到标记为 "Before Daguo Setup" 的快照
-#       这是对子卷的完整回滚（subvolume rollback），而非仅撤销文件差异。
-# ================================================================================
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # 颜色重置（无颜色）
 
-TARGET_DESC="Before Daguo Setup" # 要查找的快照描述（目标快照描述）
+TARGET_DESC="Before Desktop Environments" # 要查找的快照描述（目标快照描述）
 
-# 1. 检查是否为 root（必须以 root 身份运行）
+# 1. 检查是否为 root 用户（必须以 root 身份运行）
 if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}Error: Please run as root (sudo ./undochange.sh)${NC}"
     exit 1
 fi
 
-# 2. 检查必要依赖（snapper 与 btrfs-assistant）
+# 2. 检查必要依赖（snapper 和 btrfs-assistant）
 if ! command -v snapper &> /dev/null; then
     echo -e "${RED}Error: Snapper is not installed.${NC}"
     exit 1
@@ -42,28 +34,28 @@ perform_rollback() {
     local snap_conf="$2"
     
     echo -e "Checking config: ${YELLOW}$snap_conf${NC} for subvolume: ${YELLOW}$subvol${NC}..."
-    
+
     # 1. 获取 Snapper 快照 ID
-    # 逻辑：列出快照 -> 根据描述过滤 -> 取最后一个匹配项 -> 获取其编号（ID）
+    # 逻辑：列出快照 -> 按描述过滤 -> 取最后一个匹配项 -> 拿到其编号（ID）
     local snap_id=$(snapper -c "$snap_conf" list --columns number,description | grep "$TARGET_DESC" | tail -n 1 | awk '{print $1}')
-    
+
     if [ -z "$snap_id" ]; then
         echo -e "${RED}  [SKIP] Snapshot '$TARGET_DESC' not found in config '$snap_conf'.${NC}"
         return 1
     fi
-    
+
     echo -e "  Found Snapshot ID: ${GREEN}$snap_id${NC}"
-    
+
     # 2. 映射到 btrfs-assistant 的索引（index）
     # 说明：根据子卷名称和 Snapper ID 在 btrfs-assistant 列表中查找对应的索引值
     local ba_index=$(btrfs-assistant -l | awk -v v="$subvol" -v s="$snap_id" '$2==v && $3==s {print $1}')
-    
+
     if [ -z "$ba_index" ]; then
         echo -e "${RED}  [FAIL] Could not map Snapper ID $snap_id to Btrfs-Assistant index.${NC}"
         return 1
     fi
-    
-    # 3. 执行恢复（调用 btrfs-assistant 执行回滚）
+
+    # 3. 执行恢复命令（调用 btrfs-assistant 执行回滚）
     echo -e "  Executing rollback (Index: $ba_index)..."
     if btrfs-assistant -r "$ba_index"; then
         echo -e "  ${GREEN}Success.${NC}"

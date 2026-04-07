@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+
 # ==============================================================================
 # 00-utils.sh - The "TUI" Visual Engine (v4.0)
 # ==============================================================================
@@ -17,6 +17,7 @@ export BOLD='\033[1m'           # BOLD = 粗体/高亮
 export DIM='\033[2m'            # DIM = 暗淡/降低亮度
 export ITALIC='\033[3m'         # ITALIC = 斜体 (部分终端不支持)
 export UNDER='\033[4m'          # UNDER = 下划线
+export H_MAGENTA='\033[1;35m'   # 高亮洋红色 - 用于 EXEC 标签
 
 # 常用高亮色
 export H_RED='\033[1;31m'      # 高亮红色 - 用于错误信息
@@ -44,11 +45,10 @@ export TEMP_LOG_FILE="/tmp/log-daguo-arch-setup.txt"
 # 如果日志文件不存在，则创建它并设置权限为 666 (所有人可读写)
 [ ! -f "$TEMP_LOG_FILE" ] && touch "$TEMP_LOG_FILE" && chmod 666 "$TEMP_LOG_FILE"
 
-# --- 2. 基础工具 ---
-# 这一部分定义了脚本运行所需的基础工具函数
 
-# 检查是否以 root 权限运行
-# 许多系统级操作 (如安装软件包、修改系统配置) 需要 root 权限
+# --- 2. 基础工具 ---
+
+# 检查是否以 root 权限运行：许多系统级操作 (如安装软件包、修改系统配置) 需要 root 权限
 check_root() {
     # $EUID 是 Bash 内置变量，表示当前用户的有效用户 ID
     # root 用户的 EUID 为 0
@@ -57,19 +57,141 @@ check_root() {
         exit 1
     fi
 }
+check_root
+
+# as_user - 以指定用户身份执行命令
+# 在 root 权限下运行脚本时，某些操作需要以普通用户身份执行
+# 例如：配置用户的 dotfiles、安装 AUR 包等
+# 用法: as_user <命令> [参数...]
+# 注意: 需要先设置 $TARGET_USER 环境变量
+as_user() {
+  # runuser 是比 su 更安全的切换用户命令
+  # -u 指定目标用户
+  # -- 表示后面的内容都是要执行的命令
+  runuser -u "$TARGET_USER" -- "$@"
+}
+
+# ==============================================================================
+# detect_target_user - 识别目标用户 (支持 1-based 序号与回车默认选择)
+# ==============================================================================
+detect_target_user() {
+    # 1. 缓存检查
+    if [[ -f "/tmp/shorin_install_user" ]]; then
+        TARGET_USER=$(cat "/tmp/shorin_install_user")
+        HOME_DIR="/home/$TARGET_USER"
+        export TARGET_USER HOME_DIR
+        return 0
+    fi
+    
+    log "Detecting system users..."
+    
+    # 2. 提取系统中所有普通用户 (UID 1000-60000)
+    mapfile -t HUMAN_USERS < <(awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' /etc/passwd)
+    
+    # 3. 核心决策逻辑
+    if [[ ${#HUMAN_USERS[@]} -gt 1 ]]; then
+        echo -e "   ${H_YELLOW}>>> Multiple users detected. Who is the target?${NC}"
+        
+        local default_user=""
+        local default_idx=""
+        
+        # 遍历用户，生成 1 开始的序号，并捕获当前 Sudo 用户作为默认值
+        for i in "${!HUMAN_USERS[@]}"; do
+            local mark=""
+            local display_idx=$((i + 1))
+            
+            if [[ "${HUMAN_USERS[$i]}" == "${SUDO_USER:-}" ]]; then
+                mark="${H_CYAN}*${NC}"
+                default_user="${HUMAN_USERS[$i]}"
+                default_idx="$display_idx"
+            fi
+            
+            echo -e "       [${display_idx}] ${mark}${HUMAN_USERS[$i]}"
+        done
+        
+        while true; do
+            # 动态生成提示词
+            if [[ -n "$default_user" ]]; then
+                echo -ne "   ${H_CYAN}Select user ID [1-${#HUMAN_USERS[@]}] (Default ${default_idx}): ${NC}"
+            else
+                echo -ne "   ${H_CYAN}Select user ID [1-${#HUMAN_USERS[@]}]: ${NC}"
+            fi
+            
+            read -r idx
+            
+            # 处理直接回车：如果有默认用户，直接采纳
+            if [[ -z "$idx" && -n "$default_user" ]]; then
+                TARGET_USER="$default_user"
+                log "Defaulting to current user: ${H_CYAN}${TARGET_USER}${NC}"
+                break
+            fi
+            
+            # 验证输入是否为合法数字 (1 到 数组长度)
+            if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "${#HUMAN_USERS[@]}" ]; then
+                # 数组索引需要减 1 还原
+                TARGET_USER="${HUMAN_USERS[$((idx - 1))]}"
+                break
+            else
+                warn "Invalid selection. Please enter a valid number or press Enter for default."
+            fi
+        done
+        
+        elif [[ ${#HUMAN_USERS[@]} -eq 1 ]]; then
+        TARGET_USER="${HUMAN_USERS[0]}"
+        log "Single user detected: ${H_CYAN}${TARGET_USER}${NC}"
+        
+    else
+        if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+            TARGET_USER="$SUDO_USER"
+        else
+            echo -ne "   ${H_YELLOW}No standard user found. Enter intended username:${NC} "
+            read -r TARGET_USER
+        fi
+    fi
+    
+    # 4. 最终验证与持久化
+    if [[ -z "$TARGET_USER" ]]; then
+        error "Target user cannot be empty."
+        exit 1
+    fi
+    
+    echo "$TARGET_USER" > "/tmp/shorin_install_user"
+    HOME_DIR="/home/$TARGET_USER"
+    export TARGET_USER HOME_DIR
+    
+}
 
 # 写入日志函数
 # 参数1: 日志级别 (如 LOG, SUCCESS, ERROR, WARN 等)
 # 参数2: 日志消息内容
 write_log() {
-    # Strip ANSI colors for log file
     local clean_msg=$(echo -e "$2" | sed 's/\x1b\[[0-9;]*m//g')
     echo "[$(date '+%H:%M:%S')] [$1] $clean_msg" >> "$TEMP_LOG_FILE"
 }
 
+# force_copy - 强制复制文件或目录，覆盖目标位置
+# 参数1: 源路径 (文件或目录)
+# 参数2: 目标目录
+force_copy() {
+    local src="$1"
+    local target_dir="$2"
+    
+    if [[ -z "$src" || -z "$target_dir" ]]; then
+        warn "force_copy: Missing arguments"
+        return 1
+    fi
+    
+    if [[ -d "${src%/}" ]]; then
+        (cd "$src" && find . -type d) | while read -r d; do
+            as_user rm -f "$target_dir/$d" 2>/dev/null
+        done
+    fi
+    
+    exe as_user cp -rf "$src" "$target_dir"
+}
+
 # --- 3. 视觉组件 (TUI Style) ---
 # TUI = Text User Interface (文本用户界面)
-# 这一部分定义了各种美化输出的函数，使脚本输出更加清晰美观
 
 # 绘制分割线
 # 使用 Unicode 字符 '─' 绘制一条横跨整个终端宽度的分割线
@@ -247,7 +369,7 @@ select_flathub_mirror() {
     # 菜单总宽度 = 最长内容 + 4 (左右边距各 2 个空格)
     local menu_width=$((max_len + 4))
 
-    # --- 3. 渲染菜单 (使用 echo -e 确保颜色变量被解析) ---
+    # 3. 渲染菜单 (使用 echo -e 确保颜色变量被解析)
     echo ""
     
     # 生成横线
@@ -315,7 +437,7 @@ select_flathub_mirror() {
     echo -e "${H_PURPLE}╰${line_str}╯${NC}"
     echo ""
 
-    # --- 4. 用户交互 ---
+    # 4. 用户交互
     local choice
     # 提示符
     # read -t 60: 设置 60 秒超时
@@ -348,19 +470,6 @@ select_flathub_mirror() {
         error "Failed to update mirror."
     fi
 }
-
-# as_user - 以指定用户身份执行命令
-# 在 root 权限下运行脚本时，某些操作需要以普通用户身份执行
-# 例如：配置用户的 dotfiles、安装 AUR 包等
-# 用法: as_user <命令> [参数...]
-# 注意: 需要先设置 $TARGET_USER 环境变量
-as_user() {
-  # runuser 是比 su 更安全的切换用户命令
-  # -u 指定目标用户
-  # -- 表示后面的内容都是要执行的命令
-  runuser -u "$TARGET_USER" -- "$@"
-}
-
 
 # configure_nautilus_user - 配置 GNOME 文件管理器 (Nautilus) 的用户级设置
 # 主要解决 NVIDIA 双显卡系统上 Nautilus 的兼容性问题:
@@ -440,4 +549,76 @@ configure_nautilus_user() {
     fi
   fi
   
+}
+
+# hide_desktop_file - 隐藏指定的桌面文件 (Desktop Entry)
+# 通过在用户目录创建一个覆盖系统级 .desktop 文件，并添加 NoDisplay=true
+# 来隐藏不需要的应用程序图标
+hide_desktop_file() {
+    local source_file="$1"
+    local filename=$(basename "$source_file")
+    local user_dir="$HOME_DIR/.local/share/applications"
+    local target_file="$user_dir/$filename"
+    
+    mkdir -p "$user_dir"
+    
+    if [[ -f "$source_file" ]]; then
+        cp -fv "$source_file" "$target_file"
+        if grep -q "^NoDisplay=" "$target_file"; then
+            sed -i 's/^NoDisplay=.*/NoDisplay=true/' "$target_file"
+        else
+            echo "NoDisplay=true" >> "$target_file"
+        fi
+        chown "$TARGET_USER:" "$target_file"
+    fi
+}
+
+# run_hide_desktop_file - 批量隐藏一系列不需要的桌面图标
+run_hide_desktop_file() {
+    
+    local apps_to_hide=(
+        "avahi-discover.desktop"
+        "qv4l2.desktop"
+        "qvidcap.desktop"
+        "bssh.desktop"
+        "org.fcitx.Fcitx5.desktop"
+        "org.fcitx.fcitx5-migrator.desktop"
+        "xgps.desktop"
+        "xgpsspeed.desktop"
+        "gvim.desktop"
+        "kbd-layout-viewer5.desktop"
+        "bvnc.desktop"
+        "yazi.desktop"
+        "btop.desktop"
+        "vim.desktop"
+        "nvim.desktop"
+        "nvtop.desktop"
+        "mpv.desktop"
+        "org.gnome.Settings.desktop"
+        "thunar-settings.desktop"
+        "thunar-bulk-rename.desktop"
+        "thunar-volman-settings.desktop"
+        "clipse-gui.desktop"
+        "waypaper.desktop"
+        "xfce4-about.desktop"
+        "cmake-gui.desktop"
+        "assistant.desktop"
+        "qdbusviewer.desktop"
+        "linguist.desktop"
+        "designer.desktop"
+        "org.kde.drkonqi.coredump.gui.desktop"
+        "org.kde.kwrite.desktop"
+        "org.freedesktop.MalcontentControl.desktop"
+        "org.gnome.Nautilus.desktop"
+    )
+    
+    echo "正在隐藏不需要的桌面图标..."
+    
+    # 用一个 for 循环搞定所有调用
+    for app in "${apps_to_hide[@]}"; do
+        hide_desktop_file "/usr/share/applications/$app"
+    done
+    chown -R "$TARGET_USER:" "$HOME_DIR/.local/share/applications"
+    
+    echo "图标隐藏完成！"
 }
