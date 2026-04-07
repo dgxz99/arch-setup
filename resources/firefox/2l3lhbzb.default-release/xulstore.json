@@ -1,7 +1,0 @@
-{
-    "chrome://browser/content/browser.xhtml": {
-        "main-window": {
-            "sizemode": "normal"
-        }
-    }
-}

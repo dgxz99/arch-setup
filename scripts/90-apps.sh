@@ -498,45 +498,10 @@ section "Config" "Hiding useless .desktop files"
 log "Hiding useless .desktop files"
 run_hide_desktop_file
 
-# --- Firefox 配置 ---
-# 复制预设的 Firefox 配置
-section "Config" "Firefox UI Customization"
-MOZILLA_DIR="$HOME_DIR/.mozilla"
-
-if [ -d "$HOME_DIR/.mozilla" ]; then 
-    log "Backing up existing .mozilla directory..."
-    mv "$HOME_DIR/.mozilla" "$HOME_DIR/.mozilla.bak.$(date +%s)"
-fi
-    
-if mkdir -p "$MOZILLA_DIR"; then 
-    log "directory created."
-fi
-if cp -rf "$PARENT_DIR/resources/firefox" "$MOZILLA_DIR/"; then
-    chown -R "$TARGET_USER" "$MOZILLA_DIR"
-    log "firefox dotfiles doployed."
-fi
-
-# --- clash 配置 ---
-section "Config" "clash tun"
-
-# --- mangohud --- 
-section "Config" "MangoHud Configuration"
-if command -v mangohud &>/dev/null; then 
-
-    if [ -d "$HOME_DIR/.config/MangoHud" ]; then
-        log "MangoHud config already exists."
-    else
-        log "Deploying MangoHud config..."
-        force_copy "$PARENT_DIR/resources/MangoHud" "$HOME_DIR/.config/MangoHud"
-    fi
-
-fi 
-
 # ------------------------------------------------------------------------------
 # [清理] 移除临时 SUDO 配置
 # ------------------------------------------------------------------------------
 # 安装完成后撤销 NOPASSWD 权限，保持系统安全
-
 cleanup_sudo_temp
 
 # ------------------------------------------------------------------------------
