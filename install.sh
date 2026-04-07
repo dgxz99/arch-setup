@@ -238,7 +238,7 @@ MANDATORY_MODULES=(
     "08-snapshot-before-desktop.sh"
 )
 
-ALL_MODULES=("${MANDATORY_MODULES[@]}" "${OPTIONAL_MODULES[@]}")
+ALL_MODULES=("${MANDATORY_MODULES[@]}")
 
 # 根据选择的桌面环境 (DESKTOP_ENV) 添加特定模块
 case "$DESKTOP_ENV" in
@@ -254,6 +254,7 @@ case "$DESKTOP_ENV" in
         ;;
 esac
 
+ALL_MODULES+=("${OPTIONAL_MODULES[@]}")
 ALL_MODULES+=("95-verify.sh" "99-cleanup.sh")
 
 # 按声明顺序去重，避免 sort -u 打乱安装阶段顺序。
