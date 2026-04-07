@@ -52,6 +52,44 @@ fi
 
 echo -e "${YELLOW}>>> Initializing Emergency Rollback (Target: '$TARGET_DESC')...${NC}"
 
+# --- 辅助函数：清理目标快照之后产生的快照 ---
+# 参数：$1 = snapper 配置名（例如 root 或 home）
+cleanup_newer_snapshots() {
+    local snap_conf="$1"
+
+    echo -e "Cleaning snapshots newer than ${YELLOW}$TARGET_DESC${NC} in config: ${YELLOW}$snap_conf${NC}..."
+
+    local target_id
+    target_id=$(snapper -c "$snap_conf" list --columns number,description | grep -F "$TARGET_DESC" | tail -n 1 | awk '{print $1}')
+
+    if [ -z "$target_id" ]; then
+        echo -e "${YELLOW}  [SKIP] Target snapshot not found in '$snap_conf'.${NC}"
+        return 0
+    fi
+
+    local delete_ids=()
+    local snap_id
+    while IFS= read -r snap_id; do
+        [[ "$snap_id" =~ ^[0-9]+$ ]] || continue
+        [[ "$snap_id" -le "$target_id" ]] && continue
+        delete_ids+=("$snap_id")
+    done < <(snapper -c "$snap_conf" list --columns number | awk 'NR > 2 {print $1}')
+
+    if [ ${#delete_ids[@]} -eq 0 ]; then
+        echo -e "  ${GREEN}No newer snapshots to delete.${NC}"
+        return 0
+    fi
+
+    echo -e "  Deleting snapshot IDs: ${delete_ids[*]}"
+    if snapper -c "$snap_conf" delete "${delete_ids[@]}"; then
+        echo -e "  ${GREEN}Snapshot cleanup successful.${NC}"
+        return 0
+    else
+        echo -e "  ${RED}Snapshot cleanup failed.${NC}"
+        return 1
+    fi
+}
+
 # --- 辅助函数：回滚逻辑（来源：quickload） ---
 # 参数：$1 = 子卷名称（例如 @ 或 @home），$2 = snapper 配置名（例如 root 或 home）
 perform_rollback() {
@@ -117,7 +155,21 @@ else
     echo -e "No 'home' snapper config found, skipping home restore."
 fi
 
-# 5. 重新启动系统
+# 5. 清理目标快照之后产生的快照
+echo -e "${YELLOW}>>> Cleaning newer snapshots...${NC}"
+if ! cleanup_newer_snapshots "root"; then
+    echo -e "${RED}CRITICAL FAILURE: Failed to clean newer root snapshots.${NC}"
+    exit 1
+fi
+
+if snapper list-configs | grep -q "^home "; then
+    if ! cleanup_newer_snapshots "home"; then
+        echo -e "${RED}CRITICAL FAILURE: Failed to clean newer home snapshots.${NC}"
+        exit 1
+    fi
+fi
+
+# 6. 重新启动系统
 echo -e "${GREEN}System rollback successful.${NC}"
 echo -e "${YELLOW}Rebooting in 3 seconds...${NC}"
 sleep 3
