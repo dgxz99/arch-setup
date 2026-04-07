@@ -155,7 +155,7 @@ ensure_package_installed() {
   fi
 }
 
-section "Phase 4" "Niri Desktop Environment"
+section "Phase 30" "Niri Desktop Environment"
 
 # ==============================================================================
 # STEP 0: Safety Checkpoint
@@ -468,18 +468,18 @@ fi
 
 # 6. 后处理
 OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
-if [ "$TARGET_USER" != "shorin" ]; then
+if [ "$TARGET_USER" != "daguo" ]; then
   # 创建空的显示器配置文件 (需要用户自己配置)
   as_user touch "$OUTPUT_KDL"
 
   # 修复 GTK Bookmarks (替换用户名)
   BOOKMARKS_FILE="$HOME_DIR/.config/gtk-3.0/bookmarks"
   if [ -f "$BOOKMARKS_FILE" ]; then
-    sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
+    sed -i "s/daguo/$TARGET_USER/g" "$BOOKMARKS_FILE"
     log "Updated GTK bookmarks."
   fi
 else
-  # shorin 用户使用示例配置
+  # daguo 用户使用示例配置
   OUTPUT_EXAMPLE_KDL="$HOME_DIR/.config/niri/output-example.kdl"
   if [ -f "$OUTPUT_EXAMPLE_KDL" ]; then
     as_user cp "$OUTPUT_EXAMPLE_KDL" "$OUTPUT_KDL"
@@ -601,4 +601,4 @@ fi
 
 # 禁用 ERR trap
 trap - ERR
-log "Module 04 completed."
+log "Module 30 completed."

@@ -76,8 +76,8 @@ as_user() {
 # ==============================================================================
 detect_target_user() {
     # 1. 缓存检查
-    if [[ -f "/tmp/shorin_install_user" ]]; then
-        TARGET_USER=$(cat "/tmp/shorin_install_user")
+    if [[ -f "/tmp/daguo_install_user" ]]; then
+        TARGET_USER=$(cat "/tmp/daguo_install_user")
         HOME_DIR="/home/$TARGET_USER"
         export TARGET_USER HOME_DIR
         return 0
@@ -155,7 +155,7 @@ detect_target_user() {
         exit 1
     fi
     
-    echo "$TARGET_USER" > "/tmp/shorin_install_user"
+    echo "$TARGET_USER" > "/tmp/daguo_install_user"
     HOME_DIR="/home/$TARGET_USER"
     export TARGET_USER HOME_DIR
     

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 03b-gpu-driver.sh GPU Driver Installer 参考了cachyos的chwd脚本
+# 05-gpu-driver.sh GPU Driver Installer 参考了cachyos的chwd脚本
 # ==============================================================================
 # 模块说明：显卡驱动自动安装
 # ------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ fi
 
 check_root
 
-section "Phase 4" "GPU Driver Setup"
+section "Phase 5" "GPU Driver Setup"
 
 # ==============================================================================
 # 1. 变量声明与基础信息获取
@@ -291,4 +291,4 @@ else
     warn "No GPU drivers matched or needed."
 fi
 
-success "Module 04 completed."
+success "Module 05 completed."

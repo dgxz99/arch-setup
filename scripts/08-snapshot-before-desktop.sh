@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 03c-snapshot-before-desktop.sh
+# 08-snapshot-before-desktop.sh
 # Creates a system snapshot before installing major Desktop Environments.
 # ==============================================================================
 # 模块说明：桌面环境安装前快照
@@ -32,7 +32,7 @@ fi
 # 2. 权限检查 - 创建快照需要 root 权限
 check_root
 
-section "Phase 07" "System Snapshot"
+section "Phase 08" "System Snapshot"
 
 # ==============================================================================
 
@@ -50,7 +50,7 @@ create_checkpoint() {
     fi
 
     # 1. Root 分区快照
-    # 检查 root 配置是否存在 (00-btrfs-init.sh 创建)
+    # 检查 root 配置是否存在 (02-btrfs-init.sh 创建)
     if snapper -c root get-config &>/dev/null; then
         # 检查是否已存在同名快照 (避免重复创建)
         # 如果用户重复运行安装脚本，不会创建多个同名快照
@@ -107,4 +107,4 @@ if [ -f "$NIRI_AUTOSTART" ]; then
     rm -f "$NIRI_AUTOSTART"
 fi
 
-success "Module 07 completed."
+success "Module 08 completed."

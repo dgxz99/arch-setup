@@ -255,13 +255,14 @@ sys_dashboard           # 显示仪表盘
 # 动态构建模块列表
 # 定义所有桌面环境都需要的核心模块
 MANDATORY_MODULES=(
-    "01-btrfs-init.sh"
-    "02-base.sh"
-    "03-user.sh"
-    "04-gpu-drivers.sh"
-    "05-audio-bluetooth-power.sh"
-    "06-locale-input.sh"
-    "07-snapshot-before-desktop.sh"
+    "01-preflight.sh"
+    "02-btrfs-init.sh"
+    "03-base.sh"
+    "04-user.sh"
+    "05-gpu-driver.sh"
+    "06-audio-bluetooth-power.sh"
+    "07-locale-input.sh"
+    "08-snapshot-before-desktop.sh"
 )
 
 ALL_MODULES=("${MANDATORY_MODULES[@]}" "${OPTIONAL_MODULES[@]}")
@@ -281,10 +282,6 @@ case "$DESKTOP_ENV" in
 esac
 
 ALL_MODULES+=("95-verify.sh" "99-cleanup.sh")
-
-
-# 添加最后的通用模块：GRUB 主题和常用软件
-BASE_MODULES+=("07-grub-theme.sh" "99-apps.sh")
 # 使用 mapfile 结合 printf 和 sort -u 来去重并生成最终的模块列表
 mapfile -t MODULES < <(printf "%s\n" "${ALL_MODULES[@]}" | sort -u)
 
@@ -295,93 +292,6 @@ CURRENT_STEP=0
 
 log "Initializing installer sequence..."
 sleep 0.5
-
-# --- Reflector 镜像源优化 (支持状态记忆) ---
-section "Pre-Flight" "Mirrorlist Optimization"
-
-# 检查是否已经完成过 Reflector 步骤
-if grep -q "^REFLECTOR_DONE$" "$STATE_FILE"; then
-    echo -e "   ${H_GREEN}✔${NC} Mirrorlist previously optimized."
-    echo -e "   ${DIM}   Skipping Reflector steps (Resume Mode)...${NC}"
-else
-    # --- 开始 Reflector 逻辑 ---
-    log "Checking Reflector..."
-    # 安装 reflector 工具
-    exe pacman -S --noconfirm --needed reflector
-
-    CURRENT_TZ=$(readlink -f /etc/localtime)
-    # 设置 reflector 参数: https 协议、最近12小时更新的镜像、最快10个、按速率排序、保存到指定文件、详细输出
-    REFLECTOR_ARGS="--protocol https -a 12 -f 10 --sort rate --save /etc/pacman.d/mirrorlist --verbose"
-
-    # 检测是否为中国时区 (Shanghai)
-    if [[ "$CURRENT_TZ" == *"Shanghai"* ]]; then
-        echo ""
-        echo -e "${H_YELLOW}╔══════════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${H_YELLOW}║  DETECTED TIMEZONE: Asia/Shanghai                                ║${NC}"
-        echo -e "${H_YELLOW}║  Refreshing mirrors in China can be slow.                        ║${NC}"
-        echo -e "${H_YELLOW}║  Do you want to force refresh mirrors with Reflector?            ║${NC}"
-        echo -e "${H_YELLOW}╚══════════════════════════════════════════════════════════════════╝${NC}"
-        echo ""
-        
-        # 询问是否运行 Reflector (默认不运行，因为国内连接 reflector 经常超时)
-        read -t 60 -p "$(echo -e "   ${H_CYAN}Run Reflector? [y/N] (Default No in 60s): ${NC}")" choice
-        if [ $? -ne 0 ]; then echo ""; fi # 处理超时换行
-        choice=${choice:-N}
-        
-        if [[ "$choice" =~ ^[Yy]$ ]]; then
-            log "Running Reflector for China..."
-            # 尝试运行 reflector 并指定国家为 China
-            if exe reflector $REFLECTOR_ARGS -c China; then
-                success "Mirrors updated."
-            else
-                warn "Reflector failed. Continuing with existing mirrors."
-            fi
-        else
-            log "Skipping mirror refresh."
-        fi
-    else
-        # 非中国时区，尝试自动检测位置优化
-        log "Detecting location for optimization..."
-        COUNTRY_CODE=$(curl -s --max-time 2 https://ipinfo.io/country)
-        
-        if [ -n "$COUNTRY_CODE" ]; then
-            info_kv "Country" "$COUNTRY_CODE" "(Auto-detected)"
-            log "Running Reflector for $COUNTRY_CODE..."
-            # 尝试按国家代码优化
-            if ! exe reflector $REFLECTOR_ARGS -c "$COUNTRY_CODE"; then
-                warn "Country specific refresh failed. Trying global speed test..."
-                # 失败则运行全球测速
-                exe reflector $REFLECTOR_ARGS
-            fi
-        else
-            warn "Could not detect country. Running global speed test..."
-            exe reflector $REFLECTOR_ARGS --latest 25
-        fi
-        success "Mirrorlist optimized."
-    fi
-    # 记录成功状态，避免重复询问
-    echo "REFLECTOR_DONE" >> "$STATE_FILE"
-fi
-
-# ---- 更新密钥环 keyring -----
-
-section "Pre-Flight" "Update Keyring"
-
-# 强制同步包数据库并更新 archlinux-keyring，防止签名错误
-exe pacman -Sy
-exe pacman -S --noconfirm archlinux-keyring
-
-# --- 全局系统更新 ---
-section "Pre-Flight" "System update"
-log "Ensuring system is up-to-date..."
-
-# 执行全面系统更新
-if exe pacman -Syu --noconfirm; then
-    success "System Updated."
-else
-    error "System update failed. Check your network."
-    exit 1
-fi
 
 # --- 模块执行循环 ---
 for module in "${MODULES[@]}"; do

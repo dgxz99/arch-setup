@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 03-user.sh - User Account & Environment Setup (Compatible with detect_target_user)
+# 04-user.sh - User Account & Environment Setup (Compatible with detect_target_user)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +12,7 @@ check_root
 # ==============================================================================
 # Phase 1: 用户识别与账户同步
 # ==============================================================================
-section "Phase 3" "User Account Setup"
+section "Phase 4" "User Account Setup"
 
 # 强制清理用户缓存，避免上一次安装中选择的用户误用于当前机器。
 rm -f /tmp/daguo_install_user

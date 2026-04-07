@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==============================================================================
-# 01-btrfs-init.sh - Pre-install Snapshot Safety Net (Root & Home)
+# 02-btrfs-init.sh - Pre-install Snapshot Safety Net (Root & Home)
 # ==============================================================================
-# 这是安装流程的第一个模块，负责在系统配置前创建 Btrfs 快照作为安全网
+# 这是安装流程的第二个模块，负责在系统配置前创建 Btrfs 快照作为安全网
 
 # 主要功能：
 #   1. 检测根分区( / )和 home分区( /home )是否为 Btrfs 文件系统
@@ -25,7 +25,7 @@ source "$SCRIPT_DIR/00-utils.sh"                            # 加载工具函数
 # 检查是否以 root 权限运行（快照操作需要 root 权限）
 check_root
 
-log "Starting Phase 1: System Snapshot Initialization..."
+log "Starting Phase 2: System Snapshot Initialization..."
 
 # 显示阶段标题
 section "System Snapshot Initialization"
@@ -175,4 +175,4 @@ if [ -f "/etc/default/grub" ] && command -v grub-mkconfig >/dev/null 2>&1; then
     success "GRUB snapshot menu integration completed."
 fi
 
-log "Module 01 completed. Pure base system secured."
+log "Module 02 completed. Pure base system secured."

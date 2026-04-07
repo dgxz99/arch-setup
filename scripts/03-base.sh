@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 02-base.sh - Base System Configuration
+# 03-base.sh - Base System Configuration
 # ==============================================================================
 # 负责设置基础系统环境
 # 主要功能：
@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
 
-log "Starting Phase 2: Base System Configuration..."
+log "Starting Phase 3: Base System Configuration..."
 
 # ------------------------------------------------------------------------------
 # 1. Set Global Default Editor 设置全局默认文本编辑器
@@ -233,5 +233,4 @@ else
 fi
 
 # 模块完成
-log "Module 02 completed."
-
+log "Module 03 completed."

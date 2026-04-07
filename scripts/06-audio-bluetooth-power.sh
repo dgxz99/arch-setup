@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
-section 'Phase 5' 'Audio, Bluetooth and Power'
+section 'Phase 6' 'Audio, Bluetooth and Power'
 
 # ------------------------------------------------------------------------------
 # 1. Audio & Video
@@ -97,4 +97,4 @@ exe pacman -S --noconfirm --needed power-profiles-daemon
 exe systemctl enable --now power-profiles-daemon
 success "Power profiles daemon enabled."
 
-log "Phase 05 completed."
+log "Module 06 completed."

@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
-section 'Phase 6' 'Locale and Input Method'
+section 'Phase 7' 'Locale and Input Method'
 
 # ------------------------------------------------------------------------------
 # 1. Locale
@@ -63,4 +63,4 @@ section "Step 2/2" "Input Method (Fcitx5)"
 exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-git
 success "Fcitx5 installed."
 
-log "Module 06 completed."
+log "Module 07 completed."
