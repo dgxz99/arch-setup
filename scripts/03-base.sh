@@ -25,7 +25,7 @@ log "Starting Phase 3: Base System Configuration..."
 # ------------------------------------------------------------------------------
 # EDITOR 环境变量被很多命令行工具使用，如 git commit、crontab -e、visudo 等，没有设置的话，默认可能是 vi，对新手不友好
 
-section "Step 1/6" "Global Default Editor"
+section "Step 1/7" "Global Default Editor"
 
 # 默认使用 vim
 TARGET_EDITOR="vim"
@@ -58,7 +58,7 @@ success "Global EDITOR set to: ${TARGET_EDITOR}"
 #   - 某些显卡驱动 (lib32-nvidia-utils 等)
 # Arch Linux 默认不启用 multilib，需要手动开启
 
-section "Step 2/6" "Multilib Repository"
+section "Step 2/7" "Multilib Repository"
 
 # 检查 pacman.conf 中是否已启用 [multilib]
 # ^\[multilib\]: 匹配行首的 [multilib] (需要转义方括号)
@@ -92,7 +92,7 @@ fi
 #   - ttf-liberation: Liberation 字体，常用的开源替代字体
 #   - otf-font-awesome: Font Awesome 图标字体
 #   - terminus-font: 适合 TTY 的位图字体
-section "Step 3/6" "Base Fonts"
+section "Step 3/7" "Base Fonts"
 
 log "Installing noto-fonts-cjk, noto-fonts, emoji..."
 exe pacman -S --noconfirm --needed noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-cascadia-mono-nerd otf-font-awesome
@@ -132,7 +132,7 @@ success "TTY font configured (ter-v28n)."
 #   - 其他常用工具
 # 优势：不需要从 AUR 编译，下载速度快（国内镜像）
 
-section "Step 4/6" "ArchLinuxCN Repository"
+section "Step 4/7" "ArchLinuxCN Repository"
 
 # 检查是否已配置 archlinuxcn
 if grep -q "\[archlinuxcn\]" /etc/pacman.conf; then
@@ -179,7 +179,7 @@ success "ArchLinuxCN configured."
 #
 # 注意：这里直接从 archlinuxcn 安装预编译版，不需要从 AUR 编译
 
-section "Step 5/6" "AUR Helpers"
+section "Step 5/7" "AUR Helpers"
 
 log "Installing yay and paru..."
 exe pacman -S --noconfirm --needed base-devel yay paru
@@ -202,7 +202,7 @@ success "Helpers installed."
 #
 # 注意：此配置仅在系统已安装 NetworkManager 时生效
 
-section "Step 6/6" "Network Backend (iwd)"
+section "Step 6/7" "Network Backend (iwd)"
 
 # 检查 NetworkManager 是否已安装
 # pacman -Qi: 查询本地已安装的包信息
@@ -231,6 +231,21 @@ if pacman -Qi networkmanager &> /dev/null; then
 else
     log "NetworkManager not found. Skipping iwd configuration."
 fi
+
+# ------------------------------------------------------------------------------
+# 7. Install Base CLI Utilities
+# ------------------------------------------------------------------------------
+# 第七步：安装基础命令行工具
+# 这些工具对所有桌面都通用，放在 base 阶段统一提供：
+#   - fastfetch: 系统信息展示
+#   - gdu: 磁盘占用分析
+#   - btop: 交互式资源监视器
+
+section "Step 7/7" "Base CLI Utilities"
+
+log "Installing base CLI utilities..."
+exe pacman -S --noconfirm --needed fastfetch gdu btop
+success "Base CLI utilities installed."
 
 # 模块完成
 log "Module 03 completed."

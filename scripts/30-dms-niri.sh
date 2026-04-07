@@ -31,8 +31,8 @@ source "$SCRIPT_DIR/00-utils.sh"
 # 调试模式和中国镜像开关
 DEBUG=${DEBUG:-0}
 CN_MIRROR=${CN_MIRROR:-0}
-# 恢复脚本路径 - 安装失败时用于回滚
-UNDO_SCRIPT="$SCRIPT_DIR/de-undochange.sh"
+# 恢复脚本路径 - 安装失败时用于回滚到桌面环境安装前
+UNDO_SCRIPT="$PARENT_DIR/undochange.sh"
 
 check_root
 
@@ -74,7 +74,7 @@ critical_failure_handler() {
       # 选项 1: 执行恢复脚本回滚更改
       if [ -f "$UNDO_SCRIPT" ]; then
         warn "Executing recovery script..."
-        bash "$UNDO_SCRIPT"
+        bash "$UNDO_SCRIPT" desktop
         exit 1
       else
         error "Recovery script missing! You are on your own."

@@ -9,7 +9,7 @@
 # - 最终重启倒计时
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/00-lib.sh"
+source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
 section 'Phase 99' 'Cleanup and Finalization'
@@ -34,13 +34,13 @@ clean_intermediate_snapshots() {
         return
     fi
     
-    local IDS_TO_KEEP=()
-    for marker in "${KEEP_MARKERS[@]}"; do
+    local ids_to_keep=()
+    for marker in "${keep_markers[@]}"; do
         local found_id
         found_id=$(snapper -c "$config_name" list --columns number,description | grep -F "$marker" | awk '{print $1}' | tail -n 1)
         
         if [ -n "$found_id" ]; then
-            IDS_TO_KEEP+=("$found_id")
+            ids_to_keep+=("$found_id")
             log "Found protected snapshot: '$marker' (ID: $found_id)"
         fi
     done
@@ -56,7 +56,7 @@ clean_intermediate_snapshots() {
         [[ "$id" -le "$start_id" ]] && continue
 
         skip=false
-        for keep in "${keep_ids[@]}"; do
+        for keep in "${ids_to_keep[@]}"; do
             if [[ "$id" == "$keep" ]]; then
                 skip=true
                 break
@@ -69,9 +69,11 @@ clean_intermediate_snapshots() {
         fi
     done < <(snapper -c "$config_name" list --columns number,type | sed '1,2d')
 
-if [[ ${#snapshots_to_delete[@]} -gt 0 ]]; then
+    if [[ ${#snapshots_to_delete[@]} -gt 0 ]]; then
         log "Deleting ${#snapshots_to_delete[@]} intermediate snapshots in $config_name..."
         exe snapper -c "$config_name" delete "${snapshots_to_delete[@]}" || warn "Failed to delete part of snapshots in $config_name"
+    else
+        log "No intermediate snapshots to delete in $config_name."
     fi
 }
 
@@ -91,16 +93,7 @@ done
 clean_intermediate_snapshots 'root'
 clean_intermediate_snapshots 'home'
 
-DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
-TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
-HOME_DIR="/home/$TARGET_USER"
-
-for dir in /var/cache/pacman/pkg/download-*/; do
-    if [ -d "$dir" ]; then
-        echo "Found residual directory: $dir, cleaning up..."
-        rm -rf "$dir"
-    fi
-done
+detect_target_user
 
 VERIFY_LIST="/tmp/daguo_install_verify.list"
 rm -f "$VERIFY_LIST"

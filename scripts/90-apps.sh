@@ -44,16 +44,7 @@ trap 'echo -e "\n   ${H_YELLOW}>>> Operation cancelled by user (Ctrl+C). Skippin
 section "Phase 90" "Common Applications"
 
 log "Identifying target user..."
-# 优先检测 UID 1000 的用户 (通常是主用户)
-DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
-
-if [ -n "$DETECTED_USER" ]; then
-    TARGET_USER="$DETECTED_USER"
-else
-    # 如果未检测到，请求手动输入
-    read -p "   Please enter the target username: " TARGET_USER
-fi
-HOME_DIR="/home/$TARGET_USER"
+detect_target_user
 info_kv "Target" "$TARGET_USER"
 
 # ------------------------------------------------------------------------------
@@ -62,12 +53,14 @@ info_kv "Target" "$TARGET_USER"
 # 第一步：应用列表选择
 # 根据桌面环境选择对应的应用列表文件
 
-LIST_FILE="$PARENT_DIR/pkglists/apps-common.txt"
+LIST_FILE="$PARENT_DIR/pkglists/common-applist.txt"
+LIST_FILENAME="$(basename "$LIST_FILE")"
 REPO_APPS=()
 AUR_APPS=()
 FLATPAK_APPS=()
 FAILED_PACKAGES=()
 INSTALL_LAZYVIM=false
+SUDO_TEMP_FILE=""
 
 # --- [配置] ---
 # LazyVim 硬性依赖列表 - 从 niri-setup 移植
@@ -207,6 +200,16 @@ if [ ${#REPO_APPS[@]} -gt 0 ] || [ ${#AUR_APPS[@]} -gt 0 ]; then
     echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
     chmod 440 "$SUDO_TEMP_FILE"
 fi
+
+cleanup_sudo_temp() {
+    if [ -n "$SUDO_TEMP_FILE" ] && [ -f "$SUDO_TEMP_FILE" ]; then
+        log "Revoking temporary NOPASSWD..."
+        rm -f "$SUDO_TEMP_FILE"
+    fi
+}
+
+trap 'cleanup_sudo_temp; echo -e "\n   ${H_YELLOW}>>> Operation cancelled by user (Ctrl+C). Skipping...${NC}"; exit 130' INT
+trap cleanup_sudo_temp EXIT
 
 # ------------------------------------------------------------------------------
 # 3. Install Applications
@@ -481,6 +484,7 @@ run_hide_desktop_file
 # --- Firefox 配置 ---
 # 复制预设的 Firefox 配置
 section "Config" "Firefox UI Customization"
+MOZILLA_DIR="$HOME_DIR/.mozilla"
 
 if [ -d "$HOME_DIR/.mozilla" ]; then 
     log "Backing up existing .mozilla directory..."
@@ -516,10 +520,7 @@ fi
 # ------------------------------------------------------------------------------
 # 安装完成后撤销 NOPASSWD 权限，保持系统安全
 
-if [ -f "$SUDO_TEMP_FILE" ]; then
-    log "Revoking temporary NOPASSWD..."
-    rm -f "$SUDO_TEMP_FILE"
-fi
+cleanup_sudo_temp
 
 # ------------------------------------------------------------------------------
 # 5. Generate Failure Report
@@ -551,5 +552,6 @@ fi
 
 # 重置中断信号处理
 trap - INT
+trap - EXIT
 
 log 'Module 90-apps completed.'

@@ -1,23 +1,40 @@
 #!/bin/bash
 
-# ================================================================================
-# undochange.sh - 紧急系统回滚工具（基于 Btrfs Assistant）
-# ================================================================================
-# 用法：sudo ./undochange.sh
-# 描述：使用 btrfs-assistant 将系统回滚到标记为 "Before Daguo Setup" 的快照
-#       这是对子卷的完整回滚（subvolume rollback），而非仅撤销文件差异。
-# ================================================================================
+# ==============================================================================
+# undochange.sh - 统一回滚工具（基于 Btrfs Assistant）
+# ==============================================================================
+# 用法：
+#   sudo ./undochange.sh full
+#   sudo ./undochange.sh desktop
+#
+# 模式：
+#   full    -> 回滚到 "Before Daguo Setup"
+#   desktop -> 回滚到 "Before Desktop Environments"
+# ==============================================================================
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # 颜色重置（无颜色）
 
-TARGET_DESC="Before Daguo Setup" # 要查找的快照描述（目标快照描述）
+MODE="${1:-full}"
+
+case "$MODE" in
+    full)
+        TARGET_DESC="Before Daguo Setup"
+        ;;
+    desktop)
+        TARGET_DESC="Before Desktop Environments"
+        ;;
+    *)
+        echo -e "${RED}Usage: sudo ./undochange.sh [full|desktop]${NC}"
+        exit 1
+        ;;
+esac
 
 # 1. 检查是否为 root（必须以 root 身份运行）
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Error: Please run as root (sudo ./undochange.sh)${NC}"
+    echo -e "${RED}Error: Please run as root (sudo ./undochange.sh [full|desktop])${NC}"
     exit 1
 fi
 
@@ -45,7 +62,8 @@ perform_rollback() {
     
     # 1. 获取 Snapper 快照 ID
     # 逻辑：列出快照 -> 根据描述过滤 -> 取最后一个匹配项 -> 获取其编号（ID）
-    local snap_id=$(snapper -c "$snap_conf" list --columns number,description | grep "$TARGET_DESC" | tail -n 1 | awk '{print $1}')
+    local snap_id
+    snap_id=$(snapper -c "$snap_conf" list --columns number,description | grep -F "$TARGET_DESC" | tail -n 1 | awk '{print $1}')
     
     if [ -z "$snap_id" ]; then
         echo -e "${RED}  [SKIP] Snapshot '$TARGET_DESC' not found in config '$snap_conf'.${NC}"
@@ -90,7 +108,11 @@ fi
 if snapper list-configs | grep -q "^home "; then
     echo -e "${YELLOW}>>> Restoring Home Filesystem...${NC}"
     # 在 Arch 布局中，snapper 的 'home' 配置通常对应子卷 '@home'
-    perform_rollback "@home" "home"
+    if ! perform_rollback "@home" "home"; then
+        echo -e "${RED}CRITICAL FAILURE: Failed to restore home partition.${NC}"
+        echo "Aborting operation to prevent partial system state."
+        exit 1
+    fi
 else
     echo -e "No 'home' snapper config found, skipping home restore."
 fi

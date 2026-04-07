@@ -2,7 +2,7 @@
 
 export SHELL=$(command -v bash)
 # ==============================================================================
-# Arch Setup - 主安装程序 (v1.1)
+# Arch Setup - 主安装程序
 # ==============================================================================
 
 # 定义基础目录变量
@@ -19,20 +19,14 @@ else
     exit 1
 fi
 
-# --- 退出时的全局清理 ---
-# 定义清理函数，删除临时存储用户名的文件
-cleanup() {
+# --- 全局退出清理 ---
+# 退出时恢复光标，并删除临时缓存的目标用户名。
+cleanup_on_exit() {
+    if command -v tput >/dev/null 2>&1; then
+        tput cnorm 2>/dev/null || true
+    fi
     rm -f "/tmp/daguo_install_user"
 }
-# 设置 trap ，在脚本退出 (EXIT) 时自动执行 cleanup 函数
-trap cleanup EXIT
-
-# --- 全局陷阱 (退出时恢复光标) ---
-# 定义退出清理函数，确保光标恢复显示 (因为脚本中可能会隐藏光标)
-cleanup_on_exit() {
-    tput cnorm
-}
-# 追加 trap，确保退出时也执行恢复光标的操作
 trap cleanup_on_exit EXIT
 
 # --- 环境变量设置 ---
@@ -282,8 +276,20 @@ case "$DESKTOP_ENV" in
 esac
 
 ALL_MODULES+=("95-verify.sh" "99-cleanup.sh")
-# 使用 mapfile 结合 printf 和 sort -u 来去重并生成最终的模块列表
-mapfile -t MODULES < <(printf "%s\n" "${ALL_MODULES[@]}" | sort -u)
+
+# 按声明顺序去重，避免 sort -u 打乱安装阶段顺序。
+MODULES=()
+for module in "${ALL_MODULES[@]}"; do
+    skip_module=false
+    for added in "${MODULES[@]}"; do
+        if [[ "$added" == "$module" ]]; then
+            skip_module=true
+            break
+        fi
+    done
+    [[ "$skip_module" == true ]] && continue
+    MODULES+=("$module")
+done
 
 if [ ! -f "$STATE_FILE" ]; then touch "$STATE_FILE"; fi
 
@@ -301,7 +307,7 @@ for module in "${MODULES[@]}"; do
     # 检查模块脚本是否存在
     if [ ! -f "$script_path" ]; then
         error "Module not found: $module"
-        continue
+        exit 1
     fi
 
     # 检查点逻辑：如果状态文件中已有该模块记录，则自动跳过
@@ -353,8 +359,12 @@ log "Archiving log..."
 if [ -f "/tmp/daguo_install_user" ]; then
     FINAL_USER=$(cat /tmp/daguo_install_user)
 else
-    # 如果临时文件不存在，尝试从 passwd 猜一个 UID 1000 的用户
-    FINAL_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
+    # 如果临时文件不存在，尝试优先取 sudo 发起用户，否则回退到 UID 1000 用户。
+    if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+        FINAL_USER="$SUDO_USER"
+    else
+        FINAL_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
+    fi
 fi
 
 # 如果找到了用户，将日志复制到该用户的 Documents 目录

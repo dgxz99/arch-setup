@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 This repository is a Bash-driven Arch Linux setup toolkit. `install.sh` is the main entrypoint and orchestrates numbered modules in `scripts/` such as `01-preflight.sh`, `20-gnome.sh`, and `95-verify.sh`. Keep new installer phases in `scripts/` and preserve the numeric prefix ordering.
 
-User-facing package selections live in `pkglists/`. Desktop and app configuration files belong in `dotfiles/common`, `dotfiles/gnome`, and `dotfiles/niri-dms`. Static assets such as wallpapers, Firefox defaults, and Windows fonts belong in `resources/`. Recovery helpers are kept at the repo root in `undochange.sh` and `de-undochange.sh`.
+User-facing package selections live in `pkglists/`. Desktop and app configuration files belong in `dotfiles/common`, `dotfiles/gnome`, and `dotfiles/niri-dms`. Static assets such as wallpapers, Firefox defaults, and Windows fonts belong in `resources/`. The rollback helper is kept at the repo root in `undochange.sh`.
 
 ## Build, Test, and Development Commands
 Use commands from a TTY on an Arch system:
@@ -11,7 +11,7 @@ Use commands from a TTY on an Arch system:
 - `sudo bash install.sh`: run the full installer locally.
 - `BRANCH=main bash strap.sh`: bootstrap from a target branch and start installation.
 - `sudo bash scripts/95-verify.sh`: run post-install verification for packages and deployed configs.
-- `bash -n install.sh scripts/*.sh undochange.sh de-undochange.sh strap.sh`: syntax-check shell scripts before committing.
+- `bash -n install.sh scripts/*.sh undochange.sh strap.sh`: syntax-check shell scripts before committing.
 - `shellcheck install.sh scripts/*.sh`: optional local lint pass; useful even though no repo config is committed.
 
 ## Coding Style & Naming Conventions
