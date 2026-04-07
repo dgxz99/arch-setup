@@ -175,6 +175,5 @@ success "PATH optimization script installed."
 # ==============================================================================
 # 完成
 # ==============================================================================
-hr
 success "User setup module for '${TARGET_USER}' completed."
 echo ""
