@@ -61,12 +61,27 @@ FLATPAK_APPS=()
 FAILED_PACKAGES=()
 INSTALL_LAZYVIM=false
 SUDO_TEMP_FILE=""
+FLATPAK_READY=false
 
 # --- [配置] ---
 # LazyVim 硬性依赖列表 - 从 niri-setup 移植
 # neovim: 编辑器本体, ripgrep/fd: 快速搜索
 # ttf-cascadia-mono-nerd: 字体图标, git: 插件管理
 LAZYVIM_DEPS=("neovim" "ripgrep" "fd" "ttf-cascadia-mono-nerd" "git")
+
+if command -v flatpak &>/dev/null && flatpak remotes --columns=name 2>/dev/null | grep -Fxq "flathub"; then
+    FLATPAK_READY=true
+else
+    warn "Flatpak or Flathub not configured. Flatpak entries will be hidden."
+fi
+
+get_available_app_entries() {
+    if [ "$FLATPAK_READY" = true ]; then
+        grep -vE "^\s*#|^\s*$" "$LIST_FILE"
+    else
+        grep -vE "^\s*#|^\s*$|^\s*flatpak:" "$LIST_FILE"
+    fi
+}
 
 # 检查列表文件是否存在
 if [ ! -f "$LIST_FILE" ]; then
@@ -76,7 +91,7 @@ if [ ! -f "$LIST_FILE" ]; then
 fi
 
 # 检查列表是否为空 (排除注释和空行)
-if ! grep -q -vE "^\s*#|^\s*$" "$LIST_FILE"; then
+if ! get_available_app_entries | grep -q .; then
     warn "App list is empty. Skipping."
     trap - INT
     exit 0
@@ -99,14 +114,14 @@ if [ $READ_STATUS -ne 0 ]; then
     echo "" 
     warn "Timeout reached (60s). Auto-installing ALL applications from list..."
     # 排除注释行和空行，处理行内注释
-    SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed -E 's/[[:space:]]+#/\t#/')
+    SELECTED_RAW=$(get_available_app_entries | sed -E 's/[[:space:]]+#/\t#/')
 
 # 情况 2: 用户输入
 else
     choice=${choice:-Y}
     if [[ "$choice" =~ ^[nN]$ ]]; then
         log "User chose to auto-install ALL applications without customization."
-        SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed -E 's/[[:space:]]+#/\t#/')
+        SELECTED_RAW=$(get_available_app_entries | sed -E 's/[[:space:]]+#/\t#/')
     else
         clear
         echo -e "\n  Loading application list..."
@@ -115,7 +130,7 @@ else
         # --multi: 支持多选
         # --bind 'load:select-all': 默认全选
         # --preview: 显示应用说明
-        SELECTED_RAW=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
+        SELECTED_RAW=$(get_available_app_entries | \
             sed -E 's/[[:space:]]+#/\t#/' | \
             fzf --multi \
                 --layout=reverse \
@@ -178,8 +193,10 @@ while IFS= read -r line; do
 
     # 根据前缀分类
     if [[ "$raw_pkg" == flatpak:* ]]; then
-        clean_name="${raw_pkg#flatpak:}"  # 移除 flatpak: 前缀
-        FLATPAK_APPS+=("$clean_name")
+        if [ "$FLATPAK_READY" = true ]; then
+            clean_name="${raw_pkg#flatpak:}"  # 移除 flatpak: 前缀
+            FLATPAK_APPS+=("$clean_name")
+        fi
     elif [[ "$raw_pkg" == AUR:* ]]; then
         clean_name="${raw_pkg#AUR:}"      # 移除 AUR: 前缀
         AUR_APPS+=("$clean_name")
@@ -290,7 +307,7 @@ if [ ${#AUR_APPS[@]} -gt 0 ]; then
 fi
 
 # --- C. Flatpak 应用 (单独模式) ---
-if [ ${#FLATPAK_APPS[@]} -gt 0 ]; then
+if [ "$FLATPAK_READY" = true ] && [ ${#FLATPAK_APPS[@]} -gt 0 ]; then
     section "Step 3/3" "Flatpak Packages (Individual)"
     
     for app in "${FLATPAK_APPS[@]}"; do

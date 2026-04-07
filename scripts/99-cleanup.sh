@@ -4,9 +4,7 @@
 #
 # 负责：
 # - 缓存清理
-# - 日志归档
 # - 删除状态文件
-# - 最终重启倒计时
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-utils.sh"
@@ -18,7 +16,7 @@ clean_intermediate_snapshots() {
     # 清理中间快照，保留关键标记快照，避免快照数量持续膨胀。
     local config_name="$1"
     local start_marker='Before Daguo Setup'
-    local keep_markers=('Before Desktop Environments' 'Before Niri Setup')
+    local keep_markers=('Before Desktop Environments')
 
     if ! snapper -c "$config_name" list >/dev/null 2>&1; then
         return 0
@@ -92,8 +90,6 @@ done
 # 清理 Btrfs 中间快照。
 clean_intermediate_snapshots 'root'
 clean_intermediate_snapshots 'home'
-
-detect_target_user
 
 VERIFY_LIST="/tmp/daguo_install_verify.list"
 rm -f "$VERIFY_LIST"

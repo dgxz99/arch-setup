@@ -56,6 +56,7 @@ fi
 
 HOME_DIR="/home/$TARGET_USER"
 CONFIG_ERRORS=0
+DESKTOP_LABEL="${DESKTOP_ENV:-unknown}"
 check_config_exists() {
     # -e 同时可识别常规文件/目录和有效软链接。
     local path="$1"
@@ -67,7 +68,9 @@ check_config_exists() {
     fi
 }
 
-log "Auditing dotfiles for ${DESKTOP_ENV^^}..."
+log "Auditing dotfiles for ${DESKTOP_LABEL^^}..."
+check_config_exists "$HOME_DIR/.local/bin"
+check_config_exists "$HOME_DIR/Documents"
 case "$DESKTOP_ENV" in
     gnome)
         # GNOME 先做基础配置目录完整性检查。
@@ -94,5 +97,3 @@ fi
 
 success 'Configuration files and symlinks deployed correctly.'
 exit 0
-
-log "Module 95 completed."

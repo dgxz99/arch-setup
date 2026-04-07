@@ -19,6 +19,7 @@ source "$SCRIPT_DIR/00-utils.sh"
 check_root
 
 log "Starting Phase 3: Base System Configuration..."
+PACMAN_DB_NEEDS_REFRESH=false
 
 # ------------------------------------------------------------------------------
 # 1. Set Global Default Editor 设置全局默认文本编辑器
@@ -32,7 +33,7 @@ TARGET_EDITOR="vim"
 # command -v: 检查命令是否存在 (比 which 更可靠)
 # &> /dev/null: 将标准输出和错误输出都重定向到空设备
 if ! command -v vim &> /dev/null; then
-    exe pacman -Syu --noconfirm vim
+    exe pacman -S --noconfirm --needed vim
 fi
 
 log "Setting EDITOR=$TARGET_EDITOR in /etc/environment..."
@@ -71,10 +72,7 @@ else
     # sed 地址范围 /\[multilib\]/,/Include/ 表示从 [multilib] 行到包含 Include 的行
     # 's/^#//': 删除行首的 # 号
     exe sed -i "/\[multilib\]/,/Include/"'s/^#//' /etc/pacman.conf
-    
-    log "Refreshing database..."
-    # 同步包数据库以获取新启用的 multilib 仓库内容
-    exe pacman -Syu
+    PACMAN_DB_NEEDS_REFRESH=true
     success "[multilib] enabled."
 fi
 
@@ -155,12 +153,17 @@ Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/\$arch
 Server = https://mirrors.hit.edu.cn/archlinuxcn/\$arch
 Server = https://repo.huaweicloud.com/archlinuxcn/\$arch
 EOT
+        PACMAN_DB_NEEDS_REFRESH=true
     success "Mirrors added."
 fi
 
 log "Installing archlinuxcn-keyring..."
 # 安装 archlinuxcn 的 GPG 密钥环，用于验证软件包签名
-exe pacman -Syu --noconfirm archlinuxcn-keyring
+if [ "$PACMAN_DB_NEEDS_REFRESH" = true ]; then
+    log "Refreshing package database for newly enabled repositories..."
+    exe pacman -Sy --noconfirm
+fi
+exe pacman -S --noconfirm --needed archlinuxcn-keyring
 success "ArchLinuxCN configured."
 
 # ------------------------------------------------------------------------------
@@ -218,11 +221,14 @@ if pacman -Qi networkmanager &> /dev/null; then
     # 确保 NetworkManager 配置目录存在
     # conf.d 目录用于存放模块化配置文件
     if [ ! -d /etc/NetworkManager/conf.d ]; then
-        mkdir -p /etc/NetworkManager/conf.d
+        exe mkdir -p /etc/NetworkManager/conf.d
     fi
     # 创建配置文件，指定 WiFi 后端为 iwd
     # [device] 节下的 wifi.backend 选项告诉 NetworkManager 使用 iwd 而非 wpa_supplicant
-    echo -e "[device]\nwifi.backend=iwd" >> /etc/NetworkManager/conf.d/iwd.conf
+    cat <<'EOF' > /etc/NetworkManager/conf.d/iwd.conf
+[device]
+wifi.backend=iwd
+EOF
 
     # 不立即重启 NetworkManager，避免断开当前网络连接
     # 配置将在下次重启后生效

@@ -19,9 +19,13 @@ section "Step 1/3" "Mirrorlist Optimization"
 if grep -q "^REFLECTOR_DONE$" "$STATE_FILE" 2>/dev/null; then
     echo -e "   ${H_GREEN}✔${NC} Mirrorlist previously optimized."
     echo -e "   ${DIM}   Skipping Reflector steps (Resume Mode)...${NC}"
+elif grep -q "^REFLECTOR_SKIPPED$" "$STATE_FILE" 2>/dev/null; then
+    echo -e "   ${H_YELLOW}●${NC} Mirror refresh was previously skipped."
+    echo -e "   ${DIM}   Skipping Reflector prompt (Resume Mode)...${NC}"
 else
     log "Checking Reflector..."
-    exe pacman -S --noconfirm --needed reflector
+    exe pacman -S --noconfirm --needed reflector curl
+    reflector_ran=false
 
     CURRENT_TZ=$(readlink -f /etc/localtime)
     REFLECTOR_ARGS="--protocol https -a 12 -f 10 --sort rate --save /etc/pacman.d/mirrorlist --verbose"
@@ -42,12 +46,15 @@ else
         if [[ "$choice" =~ ^[Yy]$ ]]; then
             log "Running Reflector for China..."
             if exe reflector $REFLECTOR_ARGS -c China; then
+                reflector_ran=true
                 success "Mirrors updated."
             else
                 warn "Reflector failed. Continuing with existing mirrors."
             fi
         else
             log "Skipping mirror refresh."
+            sed -i '/^REFLECTOR_DONE$/d;/^REFLECTOR_SKIPPED$/d' "$STATE_FILE" 2>/dev/null || true
+            echo "REFLECTOR_SKIPPED" >> "$STATE_FILE"
         fi
     else
         log "Detecting location for optimization..."
@@ -56,18 +63,31 @@ else
         if [ -n "$COUNTRY_CODE" ]; then
             info_kv "Country" "$COUNTRY_CODE" "(Auto-detected)"
             log "Running Reflector for $COUNTRY_CODE..."
-            if ! exe reflector $REFLECTOR_ARGS -c "$COUNTRY_CODE"; then
+            if exe reflector $REFLECTOR_ARGS -c "$COUNTRY_CODE"; then
+                reflector_ran=true
+            else
                 warn "Country specific refresh failed. Trying global speed test..."
-                exe reflector $REFLECTOR_ARGS
+                if exe reflector $REFLECTOR_ARGS; then
+                    reflector_ran=true
+                fi
             fi
         else
             warn "Could not detect country. Running global speed test..."
-            exe reflector $REFLECTOR_ARGS --latest 25
+            if exe reflector $REFLECTOR_ARGS --latest 25; then
+                reflector_ran=true
+            fi
         fi
-        success "Mirrorlist optimized."
+        if [ "$reflector_ran" = true ]; then
+            success "Mirrorlist optimized."
+        else
+            warn "Mirrorlist refresh failed. Continuing with existing mirrors."
+        fi
     fi
 
-    echo "REFLECTOR_DONE" >> "$STATE_FILE"
+    if [ "$reflector_ran" = true ]; then
+        sed -i '/^REFLECTOR_DONE$/d;/^REFLECTOR_SKIPPED$/d' "$STATE_FILE" 2>/dev/null || true
+        echo "REFLECTOR_DONE" >> "$STATE_FILE"
+    fi
 fi
 
 section "Step 2/3" "Update Keyring"

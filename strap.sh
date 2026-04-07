@@ -18,10 +18,21 @@ if ! command -v git &> /dev/null; then
     sudo pacman -Syu --noconfirm git
 fi
 
-# 2. 清理旧目录
+# 2. 处理旧目录
 if [ -d "$DIR_NAME" ]; then
-    echo "Removing existing directory..."
-    rm -rf "$DIR_NAME"
+    EXISTING_REMOTE=""
+    if [ -f "$DIR_NAME/.git/config" ]; then
+        EXISTING_REMOTE=$(git -C "$DIR_NAME" remote get-url origin 2>/dev/null || true)
+    fi
+
+    if [ "$EXISTING_REMOTE" = "$REPO_URL" ]; then
+        echo "Removing previous clone directory..."
+        rm -rf "$DIR_NAME"
+    else
+        echo -e "\033[0;31mError: Directory '$DIR_NAME' already exists and is not a clone of $REPO_URL.\033[0m"
+        echo "Please rename or remove it manually, then rerun strap.sh."
+        exit 1
+    fi
 fi
 
 # 3. 克隆指定分支 (-b 参数)

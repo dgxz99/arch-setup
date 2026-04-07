@@ -9,6 +9,11 @@ source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
 
+if ! command -v visudo >/dev/null 2>&1; then
+    error "visudo is required to validate sudoers configuration."
+    exit 1
+fi
+
 # ==============================================================================
 # Phase 1: 用户识别与账户同步
 # ==============================================================================
@@ -65,32 +70,34 @@ fi
 log "Configuring sudoers..."
 
 # A. 确保 wheel 组具备基础 sudo 权限 (需要密码)
-# 默认 %wheel ALL=(ALL:ALL) ALL 行被注释，需要取消注释
-if grep -q "^# %wheel ALL=(ALL:ALL) ALL" /etc/sudoers; then
-    # 取消注释
-    exe sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-    success "Uncommented %wheel in /etc/sudoers."
-elif grep -q "^%wheel ALL=(ALL:ALL) ALL" /etc/sudoers; then
-    # 已经启用
-    success "Sudo access already enabled."
-else
-    # 添加新规则
-    log "Appending %wheel rule..."
-    echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
-    success "Sudo access configured."
-fi
-
-# B. 配置免密规则 (pacman, systemctl, sudoedit)
-SUDO_CONF_FILE="/etc/sudoers.d/10-daguo-nopasswd"
-log "Installing specialized NOPASSWD rules..."
-
-cat << EOF > "$SUDO_CONF_FILE"
-# Daguo Setup: Essential tools NOPASSWD for wheel group
-%wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/systemctl, /usr/bin/sudoedit
+WHEEL_SUDO_FILE="/etc/sudoers.d/10-${TARGET_USER}-wheel"
+log "Installing wheel sudo rule via sudoers.d..."
+cat << 'EOF' > "$WHEEL_SUDO_FILE"
+# Daguo Setup: wheel group standard sudo access
+%wheel ALL=(ALL:ALL) ALL
 EOF
+exe chmod 440 "$WHEEL_SUDO_FILE"
 
-exe chmod 440 "$SUDO_CONF_FILE"
-success "Rules installed to $SUDO_CONF_FILE"
+#==============================================================================
+# B. 配置免密规则 (pacman, systemctl, sudoedit)
+# SUDO_CONF_FILE="/etc/sudoers.d/20-${TARGET_USER}-nopasswd"
+# log "Installing specialized NOPASSWD rules..."
+
+# cat << EOF > "$SUDO_CONF_FILE"
+# # Daguo Setup: Essential tools NOPASSWD for wheel group
+# %wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/systemctl, /usr/bin/sudoedit
+# EOF
+
+# exe chmod 440 "$SUDO_CONF_FILE"
+#==============================================================================
+
+if visudo -cf /etc/sudoers >/dev/null 2>&1; then
+    success "Sudo rules validated and installed."
+else
+    error "Sudoers validation failed. Rolling back drop-in files."
+    rm -f "$WHEEL_SUDO_FILE" "$SUDO_CONF_FILE"
+    exit 1
+fi
 
 # 2.配置 Faillock (防止输错密码锁定)
 log "Configuring password lockout policy (faillock)..."
@@ -122,7 +129,7 @@ fi
 
 section "Step 3/4" "User Directories"
 
-exe pacman -Syu --noconfirm --needed xdg-user-dirs
+exe pacman -S --noconfirm --needed xdg-user-dirs
 
 log "Generating directories (Downloads, Documents...)..."
 

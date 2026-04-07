@@ -110,7 +110,9 @@ if [ "$GPU_COUNT" -ge 2 ]; then
         PKGS+=("nvidia-prime" "switcheroo-control")
         # 修复 GTK4 在 NVIDIA 双显卡系统上的渲染问题
         # 强制使用 GL 渲染器而非 Vulkan
-        if grep -q "GSK_RENDERER" "/etc/environment"; then
+        if grep -q "^GSK_RENDERER=" "/etc/environment"; then
+            exe sed -i 's/^GSK_RENDERER=.*/GSK_RENDERER=gl/' /etc/environment
+        else
             echo 'GSK_RENDERER=gl' >> /etc/environment
         fi
     fi
@@ -238,17 +240,26 @@ fi
 # 执行实际的包安装
 
 
-# 获取 UID 1000 用户（普通用户）
-DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
-TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
+detect_target_user
 
 #--------------sudo temp file--------------------#
 # 创建临时的 sudo 免密码文件
 # 这是因为 yay 需要以普通用户身份运行，但安装过程中会调用 sudo
 # 为了避免安装过程中反复输入密码，临时授予免密码权限
 SUDO_TEMP_FILE="/etc/sudoers.d/99_daguo_installer_temp"
-echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
+cat <<EOF >"$SUDO_TEMP_FILE"
+$TARGET_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman
+EOF
 chmod 440 "$SUDO_TEMP_FILE"
+
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf "$SUDO_TEMP_FILE" >/dev/null 2>&1; then
+        rm -f "$SUDO_TEMP_FILE"
+        error "Temporary sudoers validation failed."
+        exit 1
+    fi
+fi
+
 log "Temp sudo file created..."
 
 # 定义清理函数：无论脚本是成功结束还是意外中断(Ctrl+C)，都确保删除免密文件

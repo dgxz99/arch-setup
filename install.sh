@@ -119,34 +119,13 @@ select_desktop() {
         fi
         
         if [ -z "$selected" ]; then continue; fi
-        
+
         export DESKTOP_ENV="$(echo "$selected" | awk -F'\t' '{print $2}')"
         local selected_name="$(echo "$selected" | awk -F'\t' '{print $3}')"
-        
-        if [ "$DESKTOP_ENV" == "random" ]; then
-            local POOL=()
-            for item in "${MENU_ITEMS[@]}"; do
-                [[ -z "$item" ]] && continue
-                local oid="${item##*|}"
-                if [[ "$oid" != "none" && "$oid" != "random" ]]; then
-                    POOL+=("$item")
-                fi
-            done
-            
-            local rand_idx=$(( RANDOM % ${#POOL[@]} ))
-            local final_item="${POOL[$rand_idx]}"
-            local final_name="${final_item%%|*}"
-            export DESKTOP_ENV="${final_item##*|}"
-            
-            echo -e "\n   ${H_CYAN}>>> Randomly selected:${NC} ${BOLD}${final_name}${NC}"
-            read -p "$(echo -e "   ${H_YELLOW}Continue with this selection? [Y/n]: ${NC}")" confirm
-            
-            if [[ "${confirm,,}" == "n" ]]; then continue; else break; fi
-        else
-            log "Selected: ${selected_name}"
-            sleep 0.5
-            break
-        fi
+
+        log "Selected: ${selected_name}"
+        sleep 0.5
+        break
     done
 }
 
@@ -231,7 +210,7 @@ sys_dashboard() {
     
     # 如果存在进度文件，显示已完成的步数
     if [ -f "$STATE_FILE" ]; then
-        done_count=$(wc -l < "$STATE_FILE")
+        done_count=$(grep -c '\.sh$' "$STATE_FILE" 2>/dev/null || true)
         echo -e "${H_BLUE}║${NC} ${BOLD}Progress${NC} : Resuming ($done_count steps recorded)"
     fi
     echo -e "${H_BLUE}╚══════════════════════════════════════════════════════╝${NC}"

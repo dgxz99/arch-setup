@@ -60,8 +60,12 @@ create_checkpoint() {
             log "Creating safety checkpoint on [root]..."
             # 使用默认类型 (single) 创建快照
             # single 表示这是一个独立的存档点，而非 pre/post 对
-            snapper -c root create --description "$MARKER"
-            success "Root snapshot created."
+            if exe snapper -c root create --description "$MARKER"; then
+                success "Root snapshot created."
+            else
+                error "Failed to create root snapshot."
+                exit 1
+            fi
         fi
     else
         warn "Snapper 'root' config not configured. Skipping root snapshot."
@@ -74,8 +78,12 @@ create_checkpoint() {
             log "Snapshot '$MARKER' already exists on [home]."
         else
             log "Creating safety checkpoint on [home]..."
-            snapper -c home create --description "$MARKER"
-            success "Home snapshot created."
+            if exe snapper -c home create --description "$MARKER"; then
+                success "Home snapshot created."
+            else
+                error "Failed to create home snapshot."
+                exit 1
+            fi
         fi
     fi
 }
@@ -96,12 +104,7 @@ log "Preparing to create restore point..."
 create_checkpoint
 
 # 清除可能存在的桌面环境自动启动服务（如果用户之前运行过安装脚本）
-HYRPLAND_AUTOSTART="$HOME_DIR/.config/systemd/user/hyprland-autostart.service"
 NIRI_AUTOSTART="$HOME_DIR/.config/systemd/user/niri-autostart.service"
-if [ -f "$HYPRLAND_AUTOSTART" ]; then
-    log "Removing existing Hyprland autostart service..."
-    rm -f "$HYPRLAND_AUTOSTART"
-fi
 if [ -f "$NIRI_AUTOSTART" ]; then
     log "Removing existing Niri autostart service..."
     rm -f "$NIRI_AUTOSTART"

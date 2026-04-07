@@ -88,6 +88,29 @@ cleanup_minegrub() {
     fi
 }
 
+write_power_entries() {
+    local custom_file="/etc/grub.d/99_custom"
+
+    if [ -f "$custom_file" ]; then
+        exe rm -f "$custom_file"
+    fi
+
+    cat <<'EOF' > "$custom_file"
+#!/bin/sh
+exec tail -n +3 $0
+
+menuentry "Reboot" {
+    reboot
+}
+
+menuentry "Shutdown" {
+    halt
+}
+EOF
+
+    exe chmod 755 "$custom_file"
+}
+
 # ------------------------------------------------------------------------------
 # 1. Advanced GRUB Configuration
 # ------------------------------------------------------------------------------
@@ -274,16 +297,23 @@ if [ "$SKIP_THEME" == "true" ]; then
         log "Cloning Lxtharia/double-minegrub-menu..."
         if exe git clone --depth 1 "https://github.com/Lxtharia/double-minegrub-menu.git" "$TEMP_MG_DIR"; then
             if [ -f "$TEMP_MG_DIR/install.sh" ]; then
-                log "Executing Minegrub install.sh..."
-                (
-                    cd "$TEMP_MG_DIR" || exit 1
-                    exe chmod +x install.sh
-                    exe ./install.sh
-                )
-                if [ $? -eq 0 ]; then
-                    success "Minegrub theme successfully installed via its script."
+                warn "Minegrub installation will execute a third-party script as root."
+                read -t 30 -r -p "$(echo -e "   ${H_YELLOW}Continue with external Minegrub installer? [y/N]: ${NC}")" MG_CONFIRM
+                echo ""
+                if [[ "${MG_CONFIRM:-N}" =~ ^[Yy]$ ]]; then
+                    log "Executing Minegrub install.sh..."
+                    (
+                        cd "$TEMP_MG_DIR" || exit 1
+                        exe chmod +x install.sh
+                        exe ./install.sh
+                    )
+                    if [ $? -eq 0 ]; then
+                        success "Minegrub theme successfully installed via its script."
+                    else
+                        error "Minegrub install.sh exited with an error."
+                    fi
                 else
-                    error "Minegrub install.sh exited with an error."
+                    warn "Minegrub installation skipped by user."
                 fi
             else
                 error "install.sh not found in the cloned repository!"
@@ -329,10 +359,7 @@ section "Step 5/6" "Menu Entries"
 log "Adding Power Options to GRUB menu..."
 
 # 复制自定义菜单模板
-cp /etc/grub.d/40_custom /etc/grub.d/99_custom
-# 添加重启和关机选项
-echo 'menuentry "Reboot"' {reboot} >> /etc/grub.d/99_custom
-echo 'menuentry "Shutdown"' {halt} >> /etc/grub.d/99_custom
+write_power_entries
 
 success "Added grub menuentry 99-shutdown"
 # ------------------------------------------------------------------------------

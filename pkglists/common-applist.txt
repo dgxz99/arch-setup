@@ -3,7 +3,6 @@ neovim                                   # Advanced version of vim
 lazyvim                                  # Great preset of neovim 
 wine                                     # run windows exe 
 virt-manager                             # KVM qemu virtula machine
-yazi                                     # great tui file manager
 
 # --- Gaming & Media ---
 steam                                    # Gaming Platform (Valve)

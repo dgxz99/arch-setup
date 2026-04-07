@@ -60,7 +60,12 @@ fi
 # fcitx5-chinese-addons: 中文输入法插件 (包含拼音、五笔等)
 # fcitx5-mozc: 日文输入法 (Mozc)
 section "Step 2/2" "Input Method (Fcitx5)"
-exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-git
+if pacman -Si rime-ice-git >/dev/null 2>&1; then
+    exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-git
+else
+    warn "rime-ice-git is unavailable in current repositories. Installing base Fcitx5 packages only."
+    exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime
+fi
 success "Fcitx5 installed."
 
 log "Module 07 completed."
