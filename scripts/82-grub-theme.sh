@@ -63,9 +63,8 @@ manage_kernel_param() {
     exe sed -i "s,^GRUB_CMDLINE_LINUX_DEFAULT=.*,GRUB_CMDLINE_LINUX_DEFAULT=\"$params\"," "$conf_file"
 }
 
-# cleanup_minegrub - 清理 Minegrub 双菜单配置
-# 检测 Minegrub 相关文件和环境变量，并删除它们以恢复标准 GRUB 配置
-cleanup_minegrub() {
+# cleanup_grub_theme - 清理旧的 GRUB 主题残留
+cleanup_grub_theme() {
     local minegrub_found=false
     
     if [ -f "/etc/grub.d/05_twomenus" ] || [ -f "/boot/grub/mainmenu.cfg" ]; then
@@ -145,10 +144,10 @@ success "Kernel parameters updated."
 # 2. Sync Themes to System
 # ------------------------------------------------------------------------------
 # 第二步：同步主题到系统目录
-# 扫描 grub-themes 目录中的有效主题
+# 扫描 resources/grub-themes 目录中的有效主题
 section "Step 2/6" "Sync Themes to System Directory"
 
-SOURCE_BASE="$PARENT_DIR/grub-themes"
+SOURCE_BASE="$PARENT_DIR/resources/grub-themes"
 DEST_DIR="/usr/share/grub/themes"
 
 # 确保目标目录存在
@@ -162,15 +161,15 @@ if [ -d "$SOURCE_BASE" ]; then
     for dir in "$SOURCE_BASE"/*; do
         if [ -d "$dir" ] && [ -f "$dir/theme.txt" ]; then
             THEME_BASENAME=$(basename "$dir")
-            if [ ! -d "$DEST_DIR/$THEME_BASENAME" ]; then
-                log "Installing $THEME_BASENAME to system..."
-                exe cp -r "$dir" "$DEST_DIR/"
-            fi
+            log "Installing $THEME_BASENAME to system..."
+            # 如果系统中已存在同名主题，先删除再复制，确保更新到最新版本
+            [ -d "$DEST_DIR/$THEME_BASENAME" ] && exe rm -rf "$DEST_DIR/$THEME_BASENAME"
+            exe cp -r "$dir" "$DEST_DIR/"
         fi
     done
     success "Local themes installed to $DEST_DIR."
 else
-    warn "Directory 'grub-themes' not found in repo. Only online/existing themes available."
+    warn "Directory 'resources/grub-themes' not found in repo. Only existing system themes available."
 fi
 
 log "Scanning $DEST_DIR for available themes..."
@@ -183,32 +182,25 @@ mapfile -t FOUND_DIRS < <(find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type d | sor
 for dir in "${FOUND_DIRS[@]:-}"; do
     if [ -n "$dir" ] && [ -f "$dir/theme.txt" ]; then
         DIR_NAME=$(basename "$dir")
-        if [[ "$DIR_NAME" != "minegrub" && "$DIR_NAME" != "minegrub-world-selection" ]]; then
-            THEME_PATHS+=("$dir")
-            THEME_NAMES+=("$DIR_NAME")
-        fi
+        THEME_PATHS+=("$dir")
+        THEME_NAMES+=("$DIR_NAME")
     fi
 done
 
 if [ ${#THEME_NAMES[@]} -eq 0 ]; then
-    log "No valid local theme folders found. Proceeding to online menu."
+    log "No valid local theme folders found."
 fi
 
 # ------------------------------------------------------------------------------
 # 3. Select Theme (TUI Menu)
 # ------------------------------------------------------------------------------
 # 第三步：选择主题 (TUI 菜单)
-# 用户可以从检测到的主题中选择一个，或者选择 Minegrub（在线仓库）或跳过主题安装
+# 用户可以从检测到的主题中选择一个，或者跳过主题安装
 section "Step 3/6" "Theme Selection"
 
-INSTALL_MINEGRUB=false
 SKIP_THEME=false
-
-MINEGRUB_OPTION_NAME="Minegrub"
 SKIP_OPTION_NAME="No theme (Skip/Clear)"
-
-MINEGRUB_IDX=$((${#THEME_NAMES[@]} + 1))
-SKIP_IDX=$((${#THEME_NAMES[@]} + 2))
+SKIP_IDX=$((${#THEME_NAMES[@]} + 1))
 
 TITLE_TEXT="Select GRUB Theme (60s Timeout)"
 LINE_STR="───────────────────────────────────────────────────────"
@@ -230,9 +222,6 @@ for i in "${!THEME_NAMES[@]}"; do
     echo -e "${H_PURPLE}│${NC} ${COLOR_STR}"
 done
 
-MG_COLOR_STR=" ${H_CYAN}[$MINEGRUB_IDX]${NC} ${MINEGRUB_OPTION_NAME}"
-echo -e "${H_PURPLE}│${NC} ${MG_COLOR_STR}"
-
 SKIP_COLOR_STR=" ${H_CYAN}[$SKIP_IDX]${NC} ${H_YELLOW}${SKIP_OPTION_NAME}${NC}"
 echo -e "${H_PURPLE}│${NC} ${SKIP_COLOR_STR}"
 
@@ -251,9 +240,6 @@ fi
 if [ "$USER_CHOICE" -eq "$SKIP_IDX" ]; then
     SKIP_THEME=true
     info_kv "Selected" "None (Clear Theme)"
-    elif [ "$USER_CHOICE" -eq "$MINEGRUB_IDX" ]; then
-    INSTALL_MINEGRUB=true
-    info_kv "Selected" "Minegrub (Online Repository)"
 else
     SELECTED_INDEX=$((USER_CHOICE-1))
     if [ -n "${THEME_NAMES[$SELECTED_INDEX]:-}" ]; then
@@ -261,8 +247,8 @@ else
         THEME_NAME="${THEME_NAMES[$SELECTED_INDEX]}"
         info_kv "Selected" "Local: $THEME_NAME"
     else
-        warn "Local theme array empty but selected. Defaulting to Minegrub."
-        INSTALL_MINEGRUB=true
+        warn "Selected theme index is invalid. Falling back to skip mode."
+        SKIP_THEME=true
     fi
 fi
 
@@ -276,7 +262,7 @@ GRUB_CONF="/etc/default/grub"
 
 if [ "$SKIP_THEME" == "true" ]; then
     log "Clearing GRUB theme configuration..."
-    cleanup_minegrub
+    cleanup_grub_theme
     
     if [ -f "$GRUB_CONF" ]; then
         if grep -q "^GRUB_THEME=" "$GRUB_CONF"; then
@@ -286,46 +272,8 @@ if [ "$SKIP_THEME" == "true" ]; then
             log "No active GRUB_THEME found to disable."
         fi
     fi
-    
-    elif [ "$INSTALL_MINEGRUB" == "true" ]; then
-    log "Preparing to install Minegrub theme..."
-    
-    if ! command -v git >/dev/null 2>&1; then
-        error "'git' is required to clone Minegrub but was not found. Skipping."
-    else
-        TEMP_MG_DIR=$(mktemp -d -t minegrub_install_XXXXXX)
-        log "Cloning Lxtharia/double-minegrub-menu..."
-        if exe git clone --depth 1 "https://github.com/Lxtharia/double-minegrub-menu.git" "$TEMP_MG_DIR"; then
-            if [ -f "$TEMP_MG_DIR/install.sh" ]; then
-                warn "Minegrub installation will execute a third-party script as root."
-                read -t 30 -r -p "$(echo -e "   ${H_YELLOW}Continue with external Minegrub installer? [y/N]: ${NC}")" MG_CONFIRM
-                echo ""
-                if [[ "${MG_CONFIRM:-N}" =~ ^[Yy]$ ]]; then
-                    log "Executing Minegrub install.sh..."
-                    (
-                        cd "$TEMP_MG_DIR" || exit 1
-                        exe chmod +x install.sh
-                        exe ./install.sh
-                    )
-                    if [ $? -eq 0 ]; then
-                        success "Minegrub theme successfully installed via its script."
-                    else
-                        error "Minegrub install.sh exited with an error."
-                    fi
-                else
-                    warn "Minegrub installation skipped by user."
-                fi
-            else
-                error "install.sh not found in the cloned repository!"
-            fi
-        else
-            error "Failed to clone Minegrub repository."
-        fi
-        [ -n "$TEMP_MG_DIR" ] && rm -rf "$TEMP_MG_DIR"
-    fi
-    
 else
-    cleanup_minegrub
+    cleanup_grub_theme
     
     if [ -f "$GRUB_CONF" ]; then
         if grep -q "^GRUB_THEME=" "$GRUB_CONF"; then
