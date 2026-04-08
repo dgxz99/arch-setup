@@ -105,7 +105,8 @@ select_flathub_mirror() {
 #   - 应用程序与系统库隔离，更安全
 #   - 可以运行不同版本的同一应用
 #   - Flathub 仓库有大量应用
-exe pacman -S --noconfirm --needed flatpak
+# bazaar 软件商店，提供图形界面来浏览和安装 Flatpak 应用
+exe pacman -S --noconfirm --needed flatpak bazaar
 # 添加 Flathub 远程仓库
 # --if-not-exists: 如果已存在则跳过
 exe flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo

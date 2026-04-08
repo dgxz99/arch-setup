@@ -17,44 +17,28 @@ $php\
 $java\
 $kotlin\
 $haskell\
-$python\
-$docker_context\
-$fill\
-$time\
+$python\ 
+$docker_context\ 
 $line_break$character"""
 
-# 使用自定义调色板名称
+right_format = """$time"""
+
+# add_newline = false
 palette = 'daguo'
 
 [palettes.daguo]
-# --- 动态颜色映射区域 (Dynamic Mapping) ---
-# 文字颜色 -> 对应壁纸生成的“表面上的文字颜色”
-color_fg0 = '#e0e3e8'
-# 背景色 -> 对应壁纸生成的“表面颜色”
-color_bg1 = '#101417'
-# 辅助背景 -> 对应壁纸生成的“高亮表面颜色”
-color_bg3 = '#262a2e'
-
-# --- 核心彩色映射 ---
-# 蓝色系 -> 主色调 (Primary)
-color_blue = '#96cdf8'
-# 青色/水鸭色 -> 次要色调 (Secondary)
-color_aqua = '#b7c9d9'
-# 绿色 -> 第三色调 (Tertiary) 或 成功色
-color_green = '#cfc0e8'
-# 橙色 -> 第三色调容器 (通常是暖色)
-color_orange = '#4d4162'
-# 紫色 -> 次要色调容器
-color_purple = '#384956'
-# 红色 -> 错误/警告色 (Error) 或 主色调容器
-color_red = '#ffb4ab'
-# 黄色 -> 逆转主色 (通常在深色模式下是亮黄/亮色)
-color_yellow = '#27638a'
-# 洋红 -> 也是一种强调色
-color_magenta = '#cae6ff'
-# 白色 -> 亮色文字
-color_white = '#c1c7ce'
-
+color_fg0 = '#fbf1c7'
+color_bg1 = '#3c3836'
+color_bg3 = '#665c54'
+color_blue = '#458588'
+color_aqua = '#689d6a'
+color_green = '#98971a'
+color_orange = '#d65d0e'
+color_purple = '#b16286'
+color_red = '#cc241d'
+color_yellow = '#d79921'
+color_magenta = '#f786f7'
+color_white = '#dfdfdf'
 
 [os]
 disabled = false
@@ -86,7 +70,6 @@ Pop = ""
 
 [username]
 show_always = true
-# 这里的 bright-green 会自动跟随你的 Ghostty/Kitty 主题变化
 format = '[$user](bright-green)[@](color_white)'
 
 [hostname]
@@ -164,13 +147,9 @@ format = '[$symbol( $version)(\($virtualenv\)) ](cyan)'
 symbol = ""
 format = '[[$symbol( $context) ](fg:color_bg3)]($style)'
 
-[fill]
-disabled = false
-symbol = ' '
-
 [time]
 disabled = false
-format = '[ $time](fg:color_white)'
+format = '[ $time](fg:color_bg3)'
 
 [line_break]
 disabled = false
@@ -178,4 +157,4 @@ disabled = false
 [character]
 disabled = false
 success_symbol = '[\$](color_white)'
-error_symbol = '[\$](color_red)'
+error_symbol = '[\$](color_white)'

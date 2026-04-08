@@ -3,7 +3,6 @@
 # Browsers & Network
 firefox                                  # Web browser
 localsend                                # Cross-device file transfer
-nm-connection-editor                     # Advanced network editor
 
 # Development & Terminal
 code                                     # Visual Studio Code
@@ -62,8 +61,8 @@ sl                                       # Steam locomotive joke
 # --- AUR ---
 
 # Communication
-AUR:linuxqq-appimage                     # Tencent QQ
-AUR:wechat-appimage                      # WeChat
+AUR:linuxqq                              # Tencent QQ
+AUR:wechat-bin                           # WeChat
 AUR:wemeet-bin                           # Tencent Meeting
 
 # Development

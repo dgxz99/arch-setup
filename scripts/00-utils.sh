@@ -467,3 +467,44 @@ run_hide_desktop_file() {
     
     echo "图标隐藏完成！"
 }
+
+# ==============================================================================
+# check_dm_conflict - 检测现有的显示管理器冲突，并让用户选择是否启用新 DM
+# ==============================================================================
+# 使用方法: check_dm_conflict
+# 结果: 设置全局变量 $SKIP_DM (true/false)
+check_dm_conflict() {
+    local KNOWN_DMS=(
+        "lemurs" "ly"
+        "gdm" "lightdm" "lxdm" "plasma-login-manager" "sddm"
+        "greetd"
+    )
+    SKIP_DM=false
+    local DM_FOUND=""
+    
+    for dm in "${KNOWN_DMS[@]}"; do
+        if pacman -Q "$dm" &>/dev/null; then
+            DM_FOUND="$dm"
+            break
+        fi
+    done
+    
+    if [ -n "$DM_FOUND" ]; then
+        info_kv "Conflict" "${H_RED}$DM_FOUND${NC}"
+        SKIP_DM=true
+    else
+        
+        if read -t 20 -p "$(echo -e "   ${H_CYAN}Enable Display Manager ? [Y/n] (Default Y): ${NC}")" choice; then
+            
+            if [[ "$choice" =~ ^[[:space:]]*[Nn](o|O)?[[:space:]]*$ ]]; then
+                SKIP_DM=true
+            else
+                SKIP_DM=false
+            fi
+        else
+            
+            echo " Y (Auto-default)"
+            SKIP_DM=false
+        fi
+    fi
+}

@@ -1,20 +1,17 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+
 # ==============================================================================
-# GNOME Setup Script (04d-gnome.sh)
+# GNOME Setup Script
 # ==============================================================================
 # 模块说明：GNOME 桌面环境安装
 # ------------------------------------------------------------------------------
-# GNOME 是简洁现代的桌面环境，注重用户体验和简化工作流
-#
 # 安装内容：
-#   1. GNOME 核心组件 (gnome-desktop, gnome-control-center, gdm)
+#   1. GNOME 核心组件 (gnome-shell, gnome-control-center, gdm)
 #   2. 常用应用 (Ghostty, Firefox, Nautilus, Celluloid)
 #   3. 快捷键配置 (优化的键盘布局)
 #   4. GNOME Shell 扩展 (平铺窗口、模糊效果等)
 #   5. 输入法配置 (Fcitx5)
 #   6. 点文件部署
-#
 # 特点：
 #   - 自动配置快捷键
 #   - 自动安装并启用 GNOME 扩展
@@ -24,46 +21,33 @@ set -e
 # 引用工具库
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-
-# 检查 utils 脚本
-if [ -f "$SCRIPT_DIR/00-utils.sh" ]; then
-    source "$SCRIPT_DIR/00-utils.sh"
-else
-    echo "Error: 00-utils.sh not found."
-    exit 1
-fi
-
-log "Initializing installation..."
+source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
+section 'Desktop 20' 'GNOME Setup'
+
+# 初始化 Verify 列表，后续安装的包会追加到这个列表中，安装完成后会进行验证。
+VERIFY_LIST='/tmp/daguo_install_verify.list'
+rm -f "$VERIFY_LIST"
 
 # ==============================================================================
-#  Identify User 
+#  Identify User & DM Check
 # ==============================================================================
-# 识别目标用户
-# TARGET_UID 用于后续 DBUS 配置
+detect_target_user
+TARGET_UID=$(id -u "$TARGET_USER")
+info_kv 'Target User' "$TARGET_USER"
+info_kv 'Target UID' "$TARGET_UID"
 
-log "Identifying user..."
-DETECTED_USER=$(awk -F: '$3 == 1000 {print $1}' /etc/passwd)
-TARGET_USER="${DETECTED_USER:-$(read -p "Target user: " u && echo $u)}"
-TARGET_UID=$(id -u "$TARGET_USER") # 提前获取 UID，后续 DBUS 配置需要
-HOME_DIR="/home/$TARGET_USER"
-
-info_kv "Target User" "$TARGET_USER"
-info_kv "Home Dir"    "$HOME_DIR"
+# 调用 Utils 函数进行冲突检测 (会自动设置 $SKIP_DM 变量)
+check_dm_conflict
 
 # ==================================
 # temp sudo without passwd
 # ==================================
-# 创建临时 sudo 免密码文件
-# 安装过程中 AUR 包需要以普通用户身份运行 yay
-
-SUDO_TEMP_FILE="/etc/sudoers.d/99_daguo_installer_temp"
-echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
+SUDO_TEMP_FILE='/etc/sudoers.d/99_daguo_installer_temp'
+printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$TARGET_USER" > "$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
 log "Temp sudo file created..."
-
-# 清理函数 - 结束时删除临时免密码文件
 cleanup_sudo() {
     if [ -f "$SUDO_TEMP_FILE" ]; then
         rm -f "$SUDO_TEMP_FILE"
@@ -71,80 +55,86 @@ cleanup_sudo() {
     fi
 }
 
-# 注册清理陷阱
 trap cleanup_sudo EXIT INT TERM
 
 #=================================================
 # Step 1: Install base pkgs
 #=================================================
-# 第一步：安装基础包
+section 'Step 1/8' 'Install GNOME Core Packages'
 
-# [桌面与核心组件]
-# gnome-desktop: GNOME 桌面核心底层库
-# gdm: GNOME Display Manager (登录管理器)
-# gnome-control-center: 系统设置中心
-# gnome-tweaks: GNOME 高级优化工具 (换主题/字体必装)
-# gnome-software --> bazaar-git【yay】: 软件应用商店
-# flatpak: 通用沙盒应用支持
-# gnome-backgrounds: GNOME 默认壁纸集合
+# 桌面基础能力：会话、登录、设置中心、默认应用与常用桌面工具。
+# - celluloid: 轻量级视频播放器，基于 mpv，界面简洁
+# - loupe: 简单的屏幕放大工具，方便查看细节
+# - nm-connection-editor: NetworkManager 连接编辑器，方便管理网络连接
+# - dnsmasq: 轻量级 DNS 和 DHCP 服务器，在某些网络配置中可能需要
+# - pacman-contrib: 包含 pactree 等工具，方便分析包依赖关系
+GNOME_DESKTOP_PKGS=(
+    gnome-shell
+    gdm
+    gnome-backgrounds
+    gnome-control-center
+    gnome-tweaks
+    kitty
+    firefox
+    celluloid
+    loupe
+    nm-connection-editor
+    dnsmasq
+    pacman-contrib
+)
 
-# [日常应用]
-# ghostty: 现代 GPU 加速终端模拟器
-# celluloid: GTK4 视频播放器 (基于 mpv)
-# loupe: GNOME 图片查看器
-# firefox: 网页浏览器
+# 文件与桌面集成：文件管理、缩略图、共享协议、归档与多媒体后端。
+# - nautilus-open-any-terminal: 在 Nautilus 中添加 "在终端中打开" 选项，提升文件管理效率
+# - file-roller: GNOME 的归档管理器，支持多种压缩格式
+# - ffmpegthumbnailer: 为视频文件生成缩略图，提升 Nautilus 的预览体验
+# - gvfs-smb: 让 Nautilus 支持 SMB 协议，方便访问 Windows 共享文件夹
+# - gvfs-mtp: 让 Nautilus 支持 MTP 协议，方便访问手机等设备
+# - gvfs-gphoto2: 让 Nautilus 支持 gphoto2 协议，方便访问相机等设备
+# - libgsf: 提供对 Microsoft Office 文件格式的支持，增强 Nautilus 的预览功能
+# - gnome-keyring: GNOME 的密码管理器，安全存储用户的密码和密钥
+# - gst-plugins-base/good/libav: 提供多媒体支持，确保视频和音频文件能够在 GNOME 环境中正常播放
+GNOME_FILE_PKGS=(
+    nautilus
+    nautilus-python
+    nautilus-open-any-terminal
+    file-roller
+    ffmpegthumbnailer
+    gvfs-smb
+    gvfs-mtp
+    gvfs-gphoto2
+    libgsf
+    gnome-keyring
+    gst-plugins-base
+    gst-plugins-good
+    gst-libav
+)
 
-# [网络与系统工具]
-# nm-connection-editor: 高级网络连接编辑器
-# dnsmasq: 本地 DNS 缓存与 DHCP 服务
-# gnome-keyring: 密码环 (保存 Wi-Fi 密码及应用凭证)
-#
-# [文件管理器与扩展支持]
-# nautilus: GNOME 官方文件管理器核心
-# nautilus-python: Python 扩展支持
-# nautilus-open-any-terminal: 右键菜单"在终端打开"插件
-# file-roller: 归档管理器 (解压缩支持)
-# ffmpegthumbnailer: 视频缩略图生成器
-# gvfs-smb: SMB 局域网共享支持
-# gvfs-mtp: MTP 设备支持[USB手机]
-# gvfs-gphoto2: 数码相机支持
-# libgsf: 结构化文件支持 [用于生成旧版 MS Office 文档(.doc/.xls)和 EPUB 电子书的缩略图]
-# gst-plugins-base / good / libav: GStreamer 多媒体与 FFmpeg 解码支持
-#
-# [字体]
-# ttf-cascadia-code-nerd: 微软 Cascadia Code 编程字体 (含 Nerd Fonts 图标)
+log "Installing GNOME desktop packages..."
+exe pacman -S --noconfirm --needed "${GNOME_DESKTOP_PKGS[@]}"
+printf '%s\n' "${GNOME_DESKTOP_PKGS[@]}" >> "$VERIFY_LIST"
+success "GNOME desktop packages installed."
 
-section "Step 1" "Install base pkgs"
-log "Installing GNOME and base tools..."
-if exe pacman -S --noconfirm --needed \
-    gnome-desktop gdm gnome-control-center gnome-tweaks flatpak \
-    ghostty celluloid loupe firefox \
-    nm-connection-editor dnsmasq gnome-keyring \
-    nautilus nautilus-python nautilus-open-any-terminal file-roller \
-    ffmpegthumbnailer gvfs-smb gvfs-mtp gvfs-gphoto2 libgsf gst-plugins-base gst-plugins-good gst-libav \
-    ttf-cascadia-code-nerd && \
-   exe as_user yay -S --noconfirm --needed bazaar-git; then
-
-        log "Packages installed successfully."
-
-else
-        log "Installation failed."
-        return 1
-fi
-
+log "Installing GNOME file integration packages..."
+exe pacman -S --noconfirm --needed "${GNOME_FILE_PKGS[@]}"
+printf '%s\n' "${GNOME_FILE_PKGS[@]}" >> "$VERIFY_LIST"
+success "GNOME file integration packages installed."
 
 # 启用 GDM (GNOME Display Manager)
-log "Enable gdm..."
-exe systemctl enable gdm
+if [ "$SKIP_DM" = true ]; then
+    log "Display Manager setup skipped (Conflict found or user opted out)."
+else
+    log "Enabling GDM..."
+    exe systemctl enable gdm.service
+    success "GDM enabled."
+fi
 
 #=================================================
 # Step 2: Set default terminal
 #=================================================
 # 第二步：设置默认终端
-# 将 Ghostty 设为 GNOME 默认终端
-
-section "Step 2" "Set default terminal"
-log "Setting GNOME default terminal to Ghostty..."
+# 将 Kitty 设为 GNOME 默认终端
+section "Step 2/8" "Set default terminal"
+log "Setting GNOME default terminal to Kitty..."
 
 # 使用 sudo -u 切换用户，并启动临时 dbus-launch 以确保 gsettings 生效
 sudo -u "$TARGET_USER" bash <<EOF
@@ -153,8 +143,8 @@ sudo -u "$TARGET_USER" bash <<EOF
         eval \$(dbus-launch --sh-syntax)
         trap "kill \$DBUS_SESSION_BUS_PID" EXIT
     fi
-
-    gsettings set org.gnome.desktop.default-applications.terminal exec 'ghostty'
+    
+    gsettings set org.gnome.desktop.default-applications.terminal exec 'kitty'
     gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
 EOF
 
@@ -163,8 +153,7 @@ EOF
 #=================================================
 # 第三步：设置区域
 # 配置 AccountsService 使登录界面显示中文
-
-section "Step 3" "Set locale"
+section "Step 3/8" "Set locale"
 log "Configuring GNOME locale for user $TARGET_USER..."
 ACCOUNT_FILE="/var/lib/AccountsService/users/$TARGET_USER"
 ACCOUNT_DIR=$(dirname "$ACCOUNT_FILE")
@@ -179,7 +168,7 @@ EOF
 #=================================================
 # Step 4: Configure Shortcuts
 #=================================================
-section "Step 4" "Configure Shortcuts"
+section "Step 4/8" "Configure Shortcuts"
 log "Configuring shortcuts..."
 
 # 使用 sudo -u 切换用户并注入 DBUS 变量以修改 dconf
@@ -273,7 +262,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     # 构建自定义快捷键列表
     
     P0=\$(add_custom 0 "openbrowser" "firefox" "<Super>b")
-    P1=\$(add_custom 1 "openterminal" "ghostty" "<Super>t")
+    P1=\$(add_custom 1 "openterminal" "kitty" "<Super>t")
     P2=\$(add_custom 2 "missioncenter" "missioncenter" "<Super>grave")
     P3=\$(add_custom 3 "opennautilus" "nautilus" "<Super>e")
     P4=\$(add_custom 4 "editscreenshot" "gradia --screenshot" "<Shift><Super>s")
@@ -291,14 +280,11 @@ EOF
 #=================================================
 # 第五步：安装 GNOME Shell 扩展
 # 使用 gnome-extensions-cli 工具从 extensions.gnome.org 安装扩展
-# "middleclickclose@paolo.tranquilli.gmail.com"    # 中键关闭标签
-# "steal-my-focus-window@steal-my-focus-window"    # 窗口焦点窃取
-
-section "Step 5" "Install Extensions"
+section "Step 5/8" "Install Extensions"
 log "Installing Extensions CLI..."
-
-sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None gnome-extensions-cli extension-manager
-
+EXT_PKGS="gnome-extensions-cli gnome-shell-extension-manager"
+echo "$EXT_PKGS" >> "$VERIFY_LIST"
+sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None $EXT_PKGS
 # 扩展列表 - 这些扩展将被安装并启用
 EXTENSION_LIST=(
     "arch-update@RaphaelRochet"                      # Arch 更新指示器
@@ -400,39 +386,29 @@ sudo -u "$TARGET_USER" bash <<EOF
 EOF
 
 #=================================================
-# nautilus fix
+# Step 6: Nautilus Fix & Input Method
 #=================================================
+section "Step 6/8" "Configure Nautilus and Input Method"
 # Nautilus NVIDIA/输入法修复
 configure_nautilus_user
-#=================================================
-# Step 6: Input Method
-#=================================================
-# 第六步：输入法配置
-# 配置 Fcitx5 环境变量
 
-section "Step 6" "Input method"
+# 输入法环境配置
 log "Configure input method environment..."
-
-# 定义 systemd 用户环境变量目录
-ENV_DIR="/home/$TARGET_USER/.config/environment.d"
-sudo -u "$TARGET_USER" mkdir -p "$ENV_DIR"
-
-# 添加 Fcitx5 环境变量
-sudo -u "$TARGET_USER" cat << EOT > "$ENV_DIR/fcitx5.conf"
-# Fcitx5 Environment Variables (Wayland Optimized)
-XMODIFIERS=@im=fcitx
+if ! grep -q "fcitx" "/etc/environment" 2>/dev/null; then
+    cat << EOT >> /etc/environment
+XIM="fcitx"
+GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
-# GLFW_IM_MODULE=ibus # (可选) 如果你玩 Minecraft 等基于 GLFW 的游戏，可以解开这行注释
+XMODIFIERS=@im=fcitx
+XDG_CURRENT_DESKTOP=GNOME
 EOT
+fi
 
 #=================================================
 # Dotfiles
 #=================================================
-# 点文件部署
-# 复制 GNOME 配置文件到用户家目录
-# 先复制 common (公共配置)，再复制 gnome (桌面特有配置)
-
-section "Dotfiles" "Deploying dotfiles"
+# 配置文件
+section "Step 7/8" "Deploying dotfiles"
 COMMON_DOTFILES_DIR=$PARENT_DIR/dotfiles/common
 GNOME_DOTFILES_DIR=$PARENT_DIR/dotfiles/gnome
 
@@ -456,11 +432,13 @@ if [ -d "$GNOME_DOTFILES_DIR" ]; then
 else
     warn "GNOME dotfiles directory not found: $GNOME_DOTFILES_DIR"
 fi
+
 # 创建模板文件
 as_user mkdir -p "$HOME_DIR/Templates"
 as_user touch "$HOME_DIR/Templates/new"
-sudo -u "$TARGET_USER" bash -c "echo '#!/bin/bash' > $HOME_DIR/Templates/new.sh"
+sudo -u "$TARGET_USER" bash -c "echo '#!/usr/bin/env bash' > $HOME_DIR/Templates/new.sh"
 sudo -u "$TARGET_USER" chmod +x "$HOME_DIR/Templates/new.sh"
+
 # 3. 修复权限 (因为 cp 是 root 运行的)
 # 明确修复 home 目录下的关键配置文件夹，避免权限问题
 log "Fixing permissions..."
@@ -474,14 +452,26 @@ if command -v flatpak &>/dev/null; then
 fi
 
 # 4. 安装 Shell 工具
-# thefuck: 命令纠错
-# starship: 终端提示符
-# eza: ls 替代品
-# fish: 友好的 Shell
-# zoxide: cd 替代品
-# jq: JSON 处理工具
+# - starship: 终端提示符
+# - eza: ls 替代品
+# - fish: 友好的 Shell
+# - zoxide: cd 替代品
+# - jq: JSON 处理工具
+# - timg: 终端图片查看器
+# - imagemagick: 图像处理工具，提供 convert 命令
+# - shorin-contrib-git: 个人维护的 AUR 包集合，包含一些实用工具
+# - bat: cat 替代品，带语法高亮
 log "Installing shell tools..."
-pacman -S --noconfirm --needed thefuck starship fish
+SHELL_TOOLS_PKGS="starship eza fish zoxide jq timg imagemagick shorin-contrib-git bat"
+echo "$SHELL_TOOLS_PKGS" >> "$VERIFY_LIST"
+exe as_user paru -S --noconfirm --needed $SHELL_TOOLS_PKGS
+
+as_user shorin link
+
+# 隐藏无用的 .desktop 文件
+section "Step 8/8" "Hiding useless .desktop files"
+log "Hiding useless .desktop files"
+run_hide_desktop_file
 
 log "Installation Complete! Please reboot."
 cleanup_sudo
