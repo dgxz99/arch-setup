@@ -1,57 +1,103 @@
-firefox                                  # the best browser on linux
-neovim                                   # Advanced version of vim 
-lazyvim                                  # Great preset of neovim 
-wine                                     # run windows exe 
-virt-manager                             # KVM qemu virtula machine
+# --- Pacman ---
 
-# --- Gaming & Media ---
-steam                                    # Gaming Platform (Valve)
-lutris                                   # Gaming outside steam
-heroic-games-launcher-bin                # Playing Epic games
-protonplus                               # mange proton 
-mpv                                      # Minimalist High Performance Video Player
-fragments                                # BitTorrent Client (GNOME style)
-mangohud                                 # OSD tool for gaming (like msi afterburner)
-gamescope                                # gaming conpositor made by Valve
-upscaler                                 # image upscaler (make it more clear)
-curtail                                  # compress image (make it smaller)    
-lact                                     # GPU Control Tool (Overclocking/Fan)
-obs-studio                               # OBS Studio (Streaming & Recording)
-# --- System Utilities ---
-yazi                                     # Blazing fast terminal file manager
-cmatrix                                  # terminal matrix rain
-lolcat                                   # colorful terminal output
-sl                                       # steam locomotive in terminal
-gnome-disk-utility                       # Disk Management Utility (Disks)
-baobab                                   # Disk Usage Analyzer
-mission-center                           # System Monitor (Task Manager style)
-clash-verge-rev                          # Sometimes a detour is necessary to solve a problem
-flatseal                                 # flatpak permission manager 
-# --- Filesystem Support ---
-dosfstools                               # Tools for FAT12/16/32 filesystems
-ntfs-3g                                  # NTFS filesystem driver
-exfat-utils                              # exFAT filesystem utilities
-f2fs-tools                               # Tools for Flash-Friendly File System
-udftools                                 # Tools for UDF filesystems (DVD/Optical)
-xfsprogs                                 # Tools for XFS filesystems
+# Browsers & Network
+firefox                                  # Web browser
+localsend                                # Cross-device file transfer
+nm-connection-editor                     # Advanced network editor
 
-# --- Others ---
-code                                     # vscode
-gnome-font-viewer                        # manage fonts easily
-gnome-calendar                           # calendar
-gnome-clocks                             # clocks
-gnome-text-editor                        # notebook
-localsend                                # send files to other devices
+# Development & Terminal
+code                                     # Visual Studio Code
+neovim                                   # Terminal editor
+lazyvim                                  # Neovim starter config
+docker                                   # Container engine
+yazi                                     # Terminal file manager
+jq                                       # JSON processor
+eza                                      # Modern ls replacement
+bat                                      # Cat with syntax highlight
+zoxide                                   # Smarter cd command
+nodejs                                   # Node.js runtime
+npm                                      # Node.js package manager
+pnpm                                     # Fast Node.js package manager
+maven                                    # Java build tool
+uv                                       # Python package and venv manager
 
-# --- AUR Packages (Social) ---
-AUR:linuxqq-appimage                     # Tencent QQ (AppImage)
-AUR:wechat-appimage                      # WeChat (AppImage)
-AUR:typora-free                          # markdown editor
-AUR:lsfg-vk-bin                          # yellow duck frame generator
-AUR:mangojuice-bin                       # GUI for mangohud                
+# Virtualization & Compatibility
+virt-manager                             # KVM and QEMU manager
+wine                                     # Windows compatibility layer
 
-# --- Flatpak Packages (Prefix with flatpak:) ---      
-flatpak:it.mijorus.gearlever             # AppImage Manager (Integrates AppImages)
-flatpak:io.github.fabrialberio.pinapp    # PinApp (Unofficial Pinterest Client)
-flatpak:com.github.wwmm.easyeffects      # Audio Effects for PipeWire (Equalizer)
-flatpak:com.github.unrud.VideoDownloader # Download youtube or bilibili videos
+# Gaming
+steam                                    # Valve gaming platform
+lutris                                   # Unified game launcher
+protonplus                               # Proton manager
+mangohud                                 # Performance overlay
+gamescope                                # Micro-compositor for games
+lact                                     # GPU control utility
+
+# Media & Desktop
+mpv                                      # Video player
+obs-studio                               # Streaming and recording
+fragments                                # BitTorrent client
+drawio-desktop                           # Diagram editor
+rustdesk                                 # Remote desktop tool
+upscaler                                 # Image upscaler
+curtail                                  # Image compressor
+gnome-font-viewer                        # Font viewer
+gnome-calendar                           # Calendar
+gnome-clocks                             # Clocks
+gnome-text-editor                        # Text editor
+pavucontrol                              # Audio volume control
+
+# System Tools
+baobab                                   # Disk usage analyzer
+mission-center                           # System monitor
+gnome-disk-utility                       # Disk utility
+dosfstools                               # FAT filesystem tools
+f2fs-tools                               # F2FS utilities
+udftools                                 # UDF filesystem tools
+xfsprogs                                 # XFS utilities
+cmatrix                                  # Matrix effect
+lolcat                                   # Rainbow output
+sl                                       # Steam locomotive joke
+
+# --- AUR ---
+
+# Communication
+AUR:linuxqq-appimage                     # Tencent QQ
+AUR:wechat-appimage                      # WeChat
+AUR:wemeet-bin                           # Tencent Meeting
+
+# Development
+AUR:typora                               # Markdown editor
+AUR:apifox-bin                           # API debugging tool
+AUR:intellij-idea-ultimate-edition       # JetBrains IntelliJ IDEA
+AUR:pycharm                              # JetBrains PyCharm
+AUR:webstorm                             # JetBrains WebStorm
+AUR:liberica-jdk-8-full-bin              # Liberica JDK 8
+AUR:liberica-jdk-21-full-bin             # Liberica JDK 21
+AUR:liberica-jdk-25-full-bin             # Liberica JDK 25
+AUR:termora-bin                          # SSH and terminal manager
+
+# Office
+AUR:wps-office-cn                        # WPS Office
+AUR:wps-office-mui-zh-cn                 # WPS Chinese language pack
+AUR:ttf-wps-fonts                        # WPS fonts
+AUR:splayer-bin                          # SPlayer media player
+
+# Gaming & Performance
+AUR:heroic-games-launcher-bin            # Epic and GOG launcher
+AUR:lsfg-vk-bin                          # LSFG Vulkan tool
+AUR:mangojuice-bin                       # MangoHud GUI
+
+# Network
+AUR:clash-party-bin                      # Clash GUI client
+
+# --- Flatpak ---
+
+# Utilities
+flatpak:it.mijorus.gearlever             # AppImage manager
+flatpak:io.github.fabrialberio.pinapp    # Pinterest client
+flatpak:com.github.tchx84.Flatseal       # Flatpak permission manager
+
+# Media
+flatpak:com.github.wwmm.easyeffects      # Audio effects
+flatpak:com.github.unrud.VideoDownloader # Video downloader

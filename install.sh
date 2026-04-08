@@ -136,6 +136,7 @@ select_optional_modules() {
         "Flatpak Setup|81-flatpak.sh"
         "GRUB Theme|82-grub-theme.sh"
         "Common Apps|90-apps.sh"
+        "Dev Tools Config|91-dev-tools.sh"
     )
     
     show_banner
