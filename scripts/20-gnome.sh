@@ -439,31 +439,50 @@ fi
 #=================================================
 # Dotfiles
 #=================================================
-# 配置文件
 section "Step 7/8" "Deploying dotfiles"
-COMMON_DOTFILES_DIR=$PARENT_DIR/dotfiles/common
-GNOME_DOTFILES_DIR=$PARENT_DIR/dotfiles/gnome
+DOTFILES_REPO_URL="${DAGUO_DOTFILES_REPO_URL:-https://github.com/dgxz99/linux-dotfiles.git}"
+DOTFILES_PARENT_DIR="$HOME_DIR/.local/share"
+DOTFILES_DIR="$DOTFILES_PARENT_DIR/daguo-linux-dotfiles"
+DOTLINK_BIN="$DOTFILES_DIR/.local/bin/dotlink"
 
-# 1. 确保目标目录存在
-log "Ensuring .config exists..."
-sudo -u $TARGET_USER mkdir -p $HOME_DIR/.config
-
-# 2. 复制文件 (包含隐藏文件)
-# 使用 /. 语法将源文件夹的*内容*合并到目标文件夹
-# 先复制公共配置，再复制 GNOME 特有配置 (后者覆盖前者)
-log "Copying common dotfiles..."
-if [ -d "$COMMON_DOTFILES_DIR" ]; then
-    cp -rf "$COMMON_DOTFILES_DIR/." "$HOME_DIR/"
-else
-    warn "Common dotfiles directory not found: $COMMON_DOTFILES_DIR"
+if ! command -v git >/dev/null 2>&1; then
+    log "Installing git for dotfiles deployment..."
+    exe pacman -S --noconfirm --needed git
 fi
 
-log "Copying GNOME dotfiles..."
-if [ -d "$GNOME_DOTFILES_DIR" ]; then
-    cp -rf "$GNOME_DOTFILES_DIR/." "$HOME_DIR/"
+log "Preparing dotfiles repository..."
+exe as_user mkdir -p "$DOTFILES_PARENT_DIR"
+
+# 获取或更新 dotfiles 仓库
+# 1. 如果目录存在且是 git 仓库，执行 pull 更新
+# 2. 如果目录存在但不是 git 仓库，备份后重新克隆
+# 3. 如果目录不存在，直接克隆
+if [ -d "$DOTFILES_DIR/.git" ]; then
+    log "Updating dotfiles repository..."
+    # 使用 --ff-only 确保不会有意外的合并或历史重写，保持仓库干净
+    exe as_user git -C "$DOTFILES_DIR" pull --ff-only
+elif [ -e "$DOTFILES_DIR" ]; then
+    BACKUP_DOTFILES_DIR="${DOTFILES_DIR}.bak.$(date +%s)"
+    log "Existing non-git dotfiles directory detected. Moving to $BACKUP_DOTFILES_DIR"
+    exe as_user mv "$DOTFILES_DIR" "$BACKUP_DOTFILES_DIR"
+    log "Cloning dotfiles repository..."
+    exe as_user git clone "$DOTFILES_REPO_URL" "$DOTFILES_DIR"
 else
-    warn "GNOME dotfiles directory not found: $GNOME_DOTFILES_DIR"
+    log "Cloning dotfiles repository..."
+    exe as_user git clone "$DOTFILES_REPO_URL" "$DOTFILES_DIR"
 fi
+
+if [ ! -f "$DOTLINK_BIN" ]; then
+    error "dotlink not found in cloned dotfiles repository: $DOTLINK_BIN"
+    exit 1
+fi
+
+# Git 在大多数情况下会保留已提交的可执行位，但这里仍显式修正一次，避免文件模式或文件系统差异导致执行失败。
+exe chmod +x "$DOTLINK_BIN"
+
+log "Linking dotfiles via dotlink..."
+exe as_user "$DOTLINK_BIN" link
+success "Dotfiles linked."
 
 # 创建模板文件
 as_user mkdir -p "$HOME_DIR/Templates"
@@ -471,8 +490,7 @@ as_user touch "$HOME_DIR/Templates/new"
 sudo -u "$TARGET_USER" bash -c "echo '#!/usr/bin/env bash' > $HOME_DIR/Templates/new.sh"
 sudo -u "$TARGET_USER" chmod +x "$HOME_DIR/Templates/new.sh"
 
-# 3. 修复权限 (因为 cp 是 root 运行的)
-# 明确修复 home 目录下的关键配置文件夹，避免权限问题
+# 修复关键目录权限，避免后续用户态程序写配置失败。
 log "Fixing permissions..."
 chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.config
 chown -R $TARGET_USER:$TARGET_USER $HOME_DIR/.local
