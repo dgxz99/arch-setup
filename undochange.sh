@@ -9,7 +9,7 @@
 #
 # 模式：
 #   full    -> 回滚到 "Before Daguo Setup"
-#   desktop -> 回滚到 "Before Desktop Environments"
+#   desktop -> 回滚到 "Before GNOME Setup"
 # ==============================================================================
 
 RED='\033[0;31m'
@@ -24,7 +24,7 @@ case "$MODE" in
         TARGET_DESC="Before Daguo Setup"
         ;;
     desktop)
-        TARGET_DESC="Before Desktop Environments"
+        TARGET_DESC="Before GNOME Setup"
         ;;
     *)
         echo -e "${RED}Usage: sudo ./undochange.sh [full|desktop]${NC}"

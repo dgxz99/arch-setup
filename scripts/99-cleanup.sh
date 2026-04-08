@@ -16,7 +16,7 @@ clean_intermediate_snapshots() {
     # 清理中间快照，保留关键标记快照，避免快照数量持续膨胀。
     local config_name="$1"
     local start_marker='Before Daguo Setup'
-    local keep_markers=('Before Desktop Environments')
+    local keep_markers=('Before GNOME Setup')
 
     if ! snapper -c "$config_name" list >/dev/null 2>&1; then
         return 0

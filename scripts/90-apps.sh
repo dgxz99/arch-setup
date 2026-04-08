@@ -51,7 +51,7 @@ info_kv "Target" "$TARGET_USER"
 # 1. List Selection & User Prompt
 # ------------------------------------------------------------------------------
 # 第一步：应用列表选择
-# 根据桌面环境选择对应的应用列表文件
+# 当前统一使用 common-applist.txt 作为可选应用清单
 
 LIST_FILE="$PARENT_DIR/pkglists/common-applist.txt"
 LIST_FILENAME="$(basename "$LIST_FILE")"
@@ -64,7 +64,7 @@ SUDO_TEMP_FILE=""
 FLATPAK_READY=false
 
 # --- [配置] ---
-# LazyVim 硬性依赖列表 - 从 niri-setup 移植
+# LazyVim 硬性依赖列表
 # neovim: 编辑器本体, ripgrep/fd: 快速搜索
 # ttf-cascadia-mono-nerd: 字体图标, git: 插件管理
 LAZYVIM_DEPS=("neovim" "ripgrep" "fd" "ttf-cascadia-mono-nerd" "git")

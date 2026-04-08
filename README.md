@@ -1,6 +1,8 @@
 > 注意：该仓库基于上游项目修改维护，当前使用仓库为：`https://github.com/dgxz99/arch-setup.git`
 > 上游仓库地址：`https://github.com/SHORiN-KiWATA/shorin-arch-setup.git`
 
+当前安装流程已固定为 `GNOME`，不再提供桌面环境选择菜单。
+
 ## 使用方法
 
 1. 安装一个archlinux系统

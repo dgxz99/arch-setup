@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 export SHELL=$(command -v bash)
 # ==============================================================================
@@ -60,73 +60,6 @@ show_banner() {
     echo -e "${NC}"
     echo -e "${DIM}   :: Arch Linux Personal Setup ::${NC}"
     echo
-}
-
-# --- 桌面环境选择菜单 ---
-select_desktop() {
-    if ! command -v fzf &> /dev/null; then
-        echo -e "   ${DIM}Installing fzf for interactive menu...${NC}"
-        pacman -Sy --noconfirm --needed fzf >/dev/null 2>&1
-    fi
-
-    # 当前两个桌面目标，后续扩展可继续按编号段添加。
-    local MENU_ITEMS=(
-        "GNOME|gnome"
-        "Daguo DMS + Niri|dms-niri"
-    )
-
-    while true; do
-        show_banner
-        
-        local fzf_list=()
-        local idx=1
-        for item in "${MENU_ITEMS[@]}"; do
-            [[ -z "$item" ]] && continue
-            
-            local name="${item%%|*}"
-            local val="${item##*|}"
-            local colored_idx="${H_CYAN}[${idx}]${NC}"
-            
-            if [ $idx -lt 10 ]; then
-                fzf_list+=("${colored_idx}   ${name}\t${val}\t${name}")
-            else
-                fzf_list+=("${colored_idx}  ${name}\t${val}\t${name}")
-            fi
-            ((idx++))
-        done
-        
-        local selected
-        selected=$(printf "%b\n" "${fzf_list[@]}" | sed '/^[[:space:]]*$/d' | fzf \
-            --ansi \
-            --delimiter='\t' \
-            --with-nth=1 \
-            --info=hidden \
-            --layout=reverse \
-            --border="rounded" \
-            --border-label="  Select Desktop Environment  " \
-            --border-label-pos=5 \
-            --color="marker:cyan,pointer:cyan,label:yellow" \
-            --header=" [J/K] Select | [Enter] confirm" \
-            --pointer=">" \
-            --bind 'j:down,k:up,ctrl-c:abort,esc:abort' \
-        --height=~20)
-        
-        local fzf_status=$?
-        
-        if [ $fzf_status -eq 130 ]; then
-            echo -e "\n   ${H_RED}>>> Installation aborted by user.${NC}"
-            exit 130
-        fi
-        
-        if [ -z "$selected" ]; then continue; fi
-
-        export DESKTOP_ENV="$(echo "$selected" | awk -F'\t' '{print $2}')"
-        local selected_name="$(echo "$selected" | awk -F'\t' '{print $3}')"
-
-        log "Selected: ${selected_name}"
-        sleep 0.5
-        break
-    done
 }
 
 # 可选模块统一放在 installer 中选择，避免把分支判断散落到各个模块内部。
@@ -198,7 +131,7 @@ sys_dashboard() {
     echo -e "${H_BLUE}╔════ SYSTEM DIAGNOSTICS ══════════════════════════════╗${NC}"
     echo -e "${H_BLUE}║${NC} ${BOLD}Kernel${NC}   : $(uname -r)" # 显示内核版本
     echo -e "${H_BLUE}║${NC} ${BOLD}User${NC}     : $(whoami)"   # 显示当前用户 (应为 root)
-    echo -e "${H_BLUE}║${NC} ${BOLD}Desktop${NC}  : ${H_CYAN}${DESKTOP_ENV^^}${NC}" # 显示选择的桌面环境 (转换为大写)
+    echo -e "${H_BLUE}║${NC} ${BOLD}Desktop${NC}  : ${H_CYAN}GNOME${NC}"
     
     # 根据网络模式显示状态
     if [ "$CN_MIRROR" == "1" ]; then
@@ -220,14 +153,13 @@ sys_dashboard() {
 
 # --- 主程序执行流程 ---
 
-select_desktop          # 执行桌面选择
 select_optional_modules # 执行可选模块选择
 clear                   # 清屏
 show_banner             # 显示 Banner
 sys_dashboard           # 显示仪表盘
 
 # 动态构建模块列表
-# 定义所有桌面环境都需要的核心模块
+# 定义安装流程的核心模块
 MANDATORY_MODULES=(
     "01-preflight.sh"
     "02-btrfs-init.sh"
@@ -240,20 +172,7 @@ MANDATORY_MODULES=(
 )
 
 ALL_MODULES=("${MANDATORY_MODULES[@]}")
-
-# 根据选择的桌面环境 (DESKTOP_ENV) 添加特定模块
-case "$DESKTOP_ENV" in
-    gnome)
-        ALL_MODULES+=("20-gnome.sh")
-        ;;
-    dms-niri)
-        ALL_MODULES+=("30-dms-niri.sh")
-        ;;
-    *)
-        error "Unknown desktop selection: $DESKTOP_ENV"
-        exit 1
-        ;;
-esac
+ALL_MODULES+=("20-gnome.sh")
 
 ALL_MODULES+=("${OPTIONAL_MODULES[@]}")
 ALL_MODULES+=("95-verify.sh" "99-cleanup.sh")

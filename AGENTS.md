@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 This repository is a Bash-driven Arch Linux setup toolkit. `install.sh` is the main entrypoint and orchestrates numbered modules in `scripts/` such as `01-preflight.sh`, `20-gnome.sh`, and `95-verify.sh`. Keep new installer phases in `scripts/` and preserve the numeric prefix ordering.
 
-User-facing package selections live in `pkglists/`. Desktop and app configuration files belong in `dotfiles/common`, `dotfiles/gnome`, and `dotfiles/niri-dms`. Static assets such as wallpapers, Firefox defaults, and Windows fonts belong in `resources/`. The rollback helper is kept at the repo root in `undochange.sh`.
+User-facing package selections live in `pkglists/`. Desktop and app configuration files belong in `dotfiles/common` and `dotfiles/gnome`. Static assets such as wallpapers, Firefox defaults, and Windows fonts belong in `resources/`. The rollback helper is kept at the repo root in `undochange.sh`.
 
 ## Build, Test, and Development Commands
 Use commands from a TTY on an Arch system:
@@ -23,7 +23,7 @@ Name new phase scripts as `NN-purpose.sh` so ordering stays obvious. Keep execut
 There is no formal unit-test suite in this repository. Validation is script-focused: run `bash -n` for syntax, use `shellcheck` when available, and execute `scripts/95-verify.sh` after changes that affect package lists, dotfiles, or deployment flow. If you add a new module, include a safe re-run path and verify both success and missing-dependency cases.
 
 ## Commit & Pull Request Guidelines
-Recent history shows short messages such as `fix` and `修改部分脚本`. Keep commits concise and imperative, but make them more specific when possible, for example: `niri: fix wallpaper path` or `installer: adjust flatpak step`.
+Recent history shows short messages such as `fix` and `修改部分脚本`. Keep commits concise and imperative, but make them more specific when possible, for example: `gnome: refine package split` or `installer: adjust flatpak step`.
 
 Pull requests should include the affected install phase(s), the commands you ran, any required environment assumptions, and screenshots only for visible desktop/UI changes. Highlight risky areas such as partitioning, bootloader edits, rollback logic, or changes that require root.
 

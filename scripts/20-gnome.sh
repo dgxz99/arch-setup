@@ -30,16 +30,52 @@ section 'Desktop 20' 'GNOME Setup'
 VERIFY_LIST='/tmp/daguo_install_verify.list'
 rm -f "$VERIFY_LIST"
 
+configure_nautilus_user() {
+    local sys_file="/usr/share/applications/org.gnome.Nautilus.desktop"
+    local user_dir="$HOME_DIR/.local/share/applications"
+    local user_file="$user_dir/org.gnome.Nautilus.desktop"
+
+    if [ ! -f "$sys_file" ]; then
+        return 0
+    fi
+
+    local need_modify=0
+    local env_vars="env"
+    local gpu_count
+    local has_nvidia
+    gpu_count=$(lspci | grep -E -i "vga|3d" | wc -l)
+    has_nvidia=$(lspci | grep -E -i "nvidia" | wc -l)
+
+    if [ "$gpu_count" -gt 1 ] && [ "$has_nvidia" -gt 0 ]; then
+        env_vars="$env_vars GSK_RENDERER=gl"
+        need_modify=1
+        log "Detected hybrid NVIDIA graphics, injecting GSK_RENDERER=gl for Nautilus."
+
+        local env_conf_dir="$HOME_DIR/.config/environment.d"
+        if [ ! -f "$env_conf_dir/gsk.conf" ]; then
+            mkdir -p "$env_conf_dir"
+            echo "GSK_RENDERER=gl" > "$env_conf_dir/gsk.conf"
+            chown -R "$TARGET_USER:$TARGET_USER" "$env_conf_dir"
+            log "Added user environment override: $env_conf_dir/gsk.conf"
+        fi
+    fi
+
+    if [ "$need_modify" -eq 1 ]; then
+        mkdir -p "$user_dir"
+        cp "$sys_file" "$user_file"
+        chown "$TARGET_USER:$TARGET_USER" "$user_file"
+        sed -i "s|^Exec=|Exec=$env_vars |" "$user_file"
+        log "Generated Nautilus user override: $user_file"
+    fi
+}
+
 # ==============================================================================
-#  Identify User & DM Check
+#  Identify User
 # ==============================================================================
 detect_target_user
 TARGET_UID=$(id -u "$TARGET_USER")
 info_kv 'Target User' "$TARGET_USER"
 info_kv 'Target UID' "$TARGET_UID"
-
-# 调用 Utils 函数进行冲突检测 (会自动设置 $SKIP_DM 变量)
-check_dm_conflict
 
 # ==================================
 # temp sudo without passwd
@@ -120,13 +156,9 @@ printf '%s\n' "${GNOME_FILE_PKGS[@]}" >> "$VERIFY_LIST"
 success "GNOME file integration packages installed."
 
 # 启用 GDM (GNOME Display Manager)
-if [ "$SKIP_DM" = true ]; then
-    log "Display Manager setup skipped (Conflict found or user opted out)."
-else
-    log "Enabling GDM..."
-    exe systemctl enable gdm.service
-    success "GDM enabled."
-fi
+log "Enabling GDM..."
+exe systemctl enable gdm.service
+success "GDM enabled."
 
 #=================================================
 # Step 2: Set default terminal

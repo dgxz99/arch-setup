@@ -2,9 +2,8 @@
 
 # 验证模块
 # Description:
-#   1. 黑盒环境启发式验证 (dms / quickshell)。
-#   2. 显式包发货单对账 (pacman -T)。
-#   3. 用户配置文件/软链接部署完整性验证。
+#   1. 显式包发货单对账 (pacman -T)。
+#   2. 用户配置文件/软链接部署完整性验证。
 #   一旦任何一环发现缺失，立即中断并退出 (exit 1)。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,7 +33,7 @@ if [ -f "$VERIFY_LIST" ]; then
             if declare -f write_log >/dev/null; then
                 write_log "FATAL" "Missing packages: $(echo "$MISSING_PKGS" | tr '\n' ' ')"
             fi
-            error "Cannot proceed with a broken desktop environment."
+            error "Cannot proceed with a broken GNOME setup."
             echo -e "   ${H_YELLOW}>>> Exiting installer. Please check your network or AUR helpers. ${NC}"
             exit 1
         else
@@ -56,7 +55,6 @@ fi
 
 HOME_DIR="/home/$TARGET_USER"
 CONFIG_ERRORS=0
-DESKTOP_LABEL="${DESKTOP_ENV:-unknown}"
 check_config_exists() {
     # -e 同时可识别常规文件/目录和有效软链接。
     local path="$1"
@@ -68,24 +66,12 @@ check_config_exists() {
     fi
 }
 
-log "Auditing dotfiles for ${DESKTOP_LABEL^^}..."
+log "Auditing dotfiles for GNOME..."
 check_config_exists "$HOME_DIR/.local/bin"
 check_config_exists "$HOME_DIR/Documents"
-case "$DESKTOP_ENV" in
-    gnome)
-        # GNOME 先做基础配置目录完整性检查。
-        check_config_exists "$HOME_DIR/.config"
-        check_config_exists "$HOME_DIR/.local/share"
-        ;;
-    dms-niri)
-        # DMS+Niri 核心路径与壁纸目录检查。
-        check_config_exists "$HOME_DIR/.config/niri"
-        check_config_exists "$HOME_DIR/Pictures/Wallpapers"
-        ;;
-    *)
-        log "No specific config checks mapped for $DESKTOP_ENV"
-        ;;
-esac
+# GNOME 基础配置目录完整性检查。
+check_config_exists "$HOME_DIR/.config"
+check_config_exists "$HOME_DIR/.local/share"
 
 if [[ "$CONFIG_ERRORS" -gt 0 ]]; then
     echo ""

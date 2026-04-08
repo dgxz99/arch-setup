@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # 语言与输入法模块。
-# 和桌面本身分离，避免 GNOME 与 Niri 各自重复处理 locale / fcitx5。
+# 和桌面模块分离，避免 locale / fcitx5 配置在后续阶段重复处理。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-utils.sh"

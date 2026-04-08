@@ -2,14 +2,14 @@
 
 # ==============================================================================
 # 08-snapshot-before-desktop.sh
-# Creates a system snapshot before installing major Desktop Environments.
+# Creates a system snapshot before installing GNOME.
 # ==============================================================================
-# 模块说明：桌面环境安装前快照
+# 模块说明：GNOME 安装前快照
 # ------------------------------------------------------------------------------
-# 此模块在安装桌面环境之前创建系统快照
+# 此模块在安装 GNOME 之前创建系统快照
 #
 # 为什么需要这个快照？
-#   - 桌面环境安装会带来大量变化
+#   - GNOME 安装会带来大量变化
 #   - 如果安装出问题，可以快速回滚到这个状态
 #   - 相当于一个"安全检查点"
 #
@@ -40,7 +40,7 @@ section "Phase 08" "System Snapshot"
 # 创建安全检查点快照
 create_checkpoint() {
     # 快照描述，用于标识这个快照的用途
-    local MARKER="Before Desktop Environments"
+    local MARKER="Before GNOME Setup"
     
     # 0. 检查 snapper 是否安装
     # 如果用户没有安装 snapper，直接跳过
@@ -102,12 +102,5 @@ fi
 
 log "Preparing to create restore point..."
 create_checkpoint
-
-# 清除可能存在的桌面环境自动启动服务（如果用户之前运行过安装脚本）
-NIRI_AUTOSTART="$HOME_DIR/.config/systemd/user/niri-autostart.service"
-if [ -f "$NIRI_AUTOSTART" ]; then
-    log "Removing existing Niri autostart service..."
-    rm -f "$NIRI_AUTOSTART"
-fi
 
 success "Module 08 completed."
