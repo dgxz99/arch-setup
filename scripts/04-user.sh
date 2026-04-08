@@ -78,24 +78,11 @@ cat << 'EOF' > "$WHEEL_SUDO_FILE"
 EOF
 exe chmod 440 "$WHEEL_SUDO_FILE"
 
-#==============================================================================
-# B. 配置免密规则 (pacman, systemctl, sudoedit)
-# SUDO_CONF_FILE="/etc/sudoers.d/20-${TARGET_USER}-nopasswd"
-# log "Installing specialized NOPASSWD rules..."
-
-# cat << EOF > "$SUDO_CONF_FILE"
-# # Daguo Setup: Essential tools NOPASSWD for wheel group
-# %wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/systemctl, /usr/bin/sudoedit
-# EOF
-
-# exe chmod 440 "$SUDO_CONF_FILE"
-#==============================================================================
-
 if visudo -cf /etc/sudoers >/dev/null 2>&1; then
     success "Sudo rules validated and installed."
 else
     error "Sudoers validation failed. Rolling back drop-in files."
-    rm -f "$WHEEL_SUDO_FILE" "$SUDO_CONF_FILE"
+    rm -f "$WHEEL_SUDO_FILE"
     exit 1
 fi
 

@@ -483,22 +483,20 @@ if command -v flatpak &>/dev/null; then
     sudo -u "$TARGET_USER" flatpak override --user --filesystem=xdg-config/fontconfig
 fi
 
-# 4. 安装 Shell 工具
+# 4. 安装终端常用工具
 # - starship: 终端提示符
 # - eza: ls 替代品
-# - fish: 友好的 Shell
-# - zoxide: cd 替代品
+# - fish: 交互式 shell
+# - zoxide: 智能目录跳转
 # - jq: JSON 处理工具
 # - timg: 终端图片查看器
 # - imagemagick: 图像处理工具，提供 convert 命令
-# - shorin-contrib-git: 个人维护的 AUR 包集合，包含一些实用工具
 # - bat: cat 替代品，带语法高亮
 log "Installing shell tools..."
-SHELL_TOOLS_PKGS="starship eza fish zoxide jq timg imagemagick shorin-contrib-git bat"
+SHELL_TOOLS_PKGS="starship eza fish zoxide jq timg imagemagick bat"
 echo "$SHELL_TOOLS_PKGS" >> "$VERIFY_LIST"
-exe as_user paru -S --noconfirm --needed $SHELL_TOOLS_PKGS
-
-as_user shorin link
+exe pacman -S --noconfirm --needed $SHELL_TOOLS_PKGS
+success "Shell tools installed."
 
 # 隐藏无用的 .desktop 文件
 section "Step 8/8" "Hiding useless .desktop files"

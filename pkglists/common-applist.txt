@@ -1,7 +1,6 @@
 # --- Pacman ---
 
 # Browsers & Network
-firefox                                  # Web browser
 localsend                                # Cross-device file transfer
 
 # Development & Terminal
@@ -10,10 +9,6 @@ neovim                                   # Terminal editor
 lazyvim                                  # Neovim starter config
 docker                                   # Container engine
 yazi                                     # Terminal file manager
-jq                                       # JSON processor
-eza                                      # Modern ls replacement
-bat                                      # Cat with syntax highlight
-zoxide                                   # Smarter cd command
 nodejs                                   # Node.js runtime
 npm                                      # Node.js package manager
 pnpm                                     # Fast Node.js package manager
@@ -89,6 +84,9 @@ AUR:mangojuice-bin                       # MangoHud GUI
 
 # Network
 AUR:clash-party-bin                      # Clash GUI client
+
+# Tools
+AUR:shorin-contrib-git                   # Shorin helper tools
 
 # --- Flatpak ---
 

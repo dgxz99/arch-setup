@@ -490,6 +490,33 @@ if [ "$INSTALL_LAZYVIM" = true ]; then
   fi
 fi
 
+# --- Shorin 配置 ---
+# 如果已安装 shorin，则补充其所需的 sudoers drop-in 并执行链接命令。
+if command -v shorin &>/dev/null; then
+    log "Shorin detected. Installing supporting sudoers rule..."
+    SUDO_CONF_FILE="/etc/sudoers.d/99-shorin-nopasswd"
+
+    cat << EOF > "$SUDO_CONF_FILE"
+# Shorin helper rule
+%wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/systemctl, /usr/bin/sudoedit
+EOF
+
+    exe chmod 440 "$SUDO_CONF_FILE"
+    if ! visudo -cf /etc/sudoers >/dev/null 2>&1; then
+        rm -f "$SUDO_CONF_FILE"
+        error "Invalid sudoers rule generated for shorin."
+        exit 1
+    fi
+    success "Shorin sudoers rule installed."
+
+    log "Running 'shorin link'..."
+    if as_user shorin link; then
+        success "Shorin config linked."
+    else
+        error "Failed to link shorin config."
+    fi
+fi
+
 # --- 隐藏无用的桌面快捷方式 ---
 # 在用户目录中创建覆盖文件，设置 NoDisplay=true
 # 隐藏各种开发工具和系统工具的桌面文件
