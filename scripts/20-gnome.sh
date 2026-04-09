@@ -105,7 +105,7 @@ section 'Step 1/8' 'Install GNOME Core Packages'
 # - dnsmasq: 轻量级 DNS 和 DHCP 服务器，在某些网络配置中可能需要
 # - pacman-contrib: 包含 pactree 等工具，方便分析包依赖关系
 GNOME_DESKTOP_PKGS=(
-    gnome-shell
+    gnome-desktop
     gdm
     gnome-backgrounds
     gnome-control-center
@@ -178,7 +178,20 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     gsettings set org.gnome.desktop.default-applications.terminal exec 'kitty'
     gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
+
+    # Nautilus 右键“在终端中打开”依赖 nautilus-open-any-terminal 的单独配置。
+    # 只装包不指定后端时，这个菜单项经常不会按预期工作。
+    if gsettings writable com.github.stunkymonkey.nautilus-open-any-terminal terminal >/dev/null 2>&1; then
+        gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty'
+    fi
 EOF
+success "GNOME default terminal configured."
+
+# 让 Nautilus 重新加载扩展，确保“在终端中打开”菜单项生效。
+if command -v nautilus >/dev/null 2>&1; then
+    log "Restarting Nautilus to load terminal extension..."
+    sudo -u "$TARGET_USER" nautilus -q >/dev/null 2>&1 || true
+fi
 
 #=================================================
 # Step 3: Set locale
@@ -260,6 +273,17 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set \$SCHEMA toggle-quick-settings "['<Control><Super>s']"
     gsettings set \$SCHEMA toggle-message-tray "[]"
 
+    # 会话菜单兜底：确保 GNOME 不会因为锁定策略而隐藏注销/切换用户。
+    gsettings set org.gnome.shell always-show-log-out true
+
+    # 顶栏时钟与日历显示：固定为中文场景下更常用的显示方式。
+    gsettings set org.gnome.desktop.interface clock-format '24h'
+    gsettings set org.gnome.desktop.interface clock-show-date true
+    gsettings set org.gnome.desktop.interface clock-show-seconds true
+    gsettings set org.gnome.desktop.interface clock-show-weekday true
+    gsettings set org.gnome.desktop.calendar show-weekdate true
+    gsettings set org.gnome.desktop.datetime automatic-timezone true
+
     # ---------------------------------------------------------
     # 3. org.gnome.settings-daemon.plugins.media-keys (媒体与自定义)
     # ---------------------------------------------------------
@@ -316,6 +340,37 @@ log "Installing Extensions CLI..."
 EXT_PKGS="gnome-extensions-cli extension-manager"
 echo "$EXT_PKGS" >> "$VERIFY_LIST"
 sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None $EXT_PKGS
+
+# Lunar Calendar依赖于第三方库，需要先安装这些库才能正常使用。
+CHINESE_CALENDAR_URL="https://gitlab.gnome.org/Nei/ChineseCalendar/-/archive/20250205/ChineseCalendar-20250205.tar.gz"
+install_chinese_calendar_dependency() {
+    log "Installing ChineseCalendar dependency for Lunar Calendar..."
+    sudo -u "$TARGET_USER" bash <<EOF
+        set -e
+        WORK_DIR="\$(mktemp -d)"
+        ARCHIVE_FILE="\$WORK_DIR/ChineseCalendar.tar.gz"
+
+        cleanup() {
+            rm -rf "\$WORK_DIR"
+        }
+        trap cleanup EXIT
+
+        if [ -f "$HOME_DIR/.local/share/ChineseCalendar/calendar.js" ]; then
+            exit 0
+        fi
+
+        curl -L "$CHINESE_CALENDAR_URL" -o "\$ARCHIVE_FILE"
+        tar -xzf "\$ARCHIVE_FILE" -C "\$WORK_DIR"
+
+        DEP_DIR=\$(find "\$WORK_DIR" -maxdepth 1 -mindepth 1 -type d | head -n 1)
+        [ -n "\$DEP_DIR" ] || exit 1
+
+        cd "\$DEP_DIR"
+        ./install.sh
+EOF
+    success "ChineseCalendar dependency installed."
+}
+
 # 扩展列表 - 这些扩展将被安装并启用
 EXTENSION_LIST=(
     "arch-update@RaphaelRochet"                      # Arch 更新指示器
@@ -325,9 +380,12 @@ EXTENSION_LIST=(
     "clipboard-indicator@tudmotu.com"                # 剪贴板管理
     "color-picker@tuberry"                           # 取色器
     "desktop-cube@schneegans.github.com"             # 桌面立方体效果
+    "ding@rastersoft.com"                            # Desktop Icons NG
     "fuzzy-application-search@mkhl.codeberg.page"    # 模糊搜索
     "lockkeys@vaina.lt"                              # 键盘锁指示器
+    "lunar-calendar@gs-extensions.zzrough.org"       # Lunar Calendar 农历
     "tilingshell@ferrarodomenico.com"                # 平铺窗口管理
+    "top-bar-organizer@julian.gse.jsts.xyz"          # Top Bar Organizer
     "user-theme@gnome-shell-extensions.gcampax.github.com" # 用户主题
     "kimpanel@kde.org"                               # Fcitx5 输入法面板
     "rounded-window-corners@fxgn"                    # 圆角窗口
@@ -338,6 +396,7 @@ EXTENSION_LIST=(
     "app-hider@lynith.dev"                           # 隐藏菜单中的App
 )
 log "Downloading extensions..."
+install_chinese_calendar_dependency
 sudo -u $TARGET_USER gnome-extensions-cli install "${EXTENSION_LIST[@]}" 2>/dev/null
 
 # 启用扩展
@@ -382,8 +441,10 @@ sudo -u "$TARGET_USER" bash <<EOF
         "clipboard-indicator@tudmotu.com"
         "color-picker@tuberry"
         "desktop-cube@schneegans.github.com"
+        "ding@rastersoft.com"
         "fuzzy-application-search@mkhl.codeberg.page"
         "lockkeys@vaina.lt"
+        "lunar-calendar@gs-extensions.zzrough.org"
         "tilingshell@ferrarodomenico.com"
         "kimpanel@kde.org"
         "rounded-window-corners@fxgn"
@@ -392,6 +453,7 @@ sudo -u "$TARGET_USER" bash <<EOF
         "drive-menu@gnome-shell-extensions.gcampax.github.com"
         "dash-to-dock@micxgx.gmail.com"
         "app-hider@lynith.dev"
+        "top-bar-organizer@julian.gse.jsts.xyz"
     )
 
     for ext in "\${ext_array[@]}"; do
