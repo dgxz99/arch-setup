@@ -153,6 +153,13 @@ sys_dashboard() {
 
 # --- 主程序执行流程 ---
 
+# 可选模块选择依赖 fzf。全新系统首次运行时通常还没装它，
+# 所以要在进入菜单前先确保可用。
+if ! command -v fzf >/dev/null 2>&1; then
+    log "Installing fzf for optional module selection..."
+    exe pacman -S --noconfirm --needed fzf || exit 1
+fi
+
 select_optional_modules # 执行可选模块选择
 clear                   # 清屏
 show_banner             # 显示 Banner
