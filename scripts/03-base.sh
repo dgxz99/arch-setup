@@ -72,7 +72,8 @@ else
     # sed 地址范围 /\[multilib\]/,/Include/ 表示从 [multilib] 行到包含 Include 的行
     # 's/^#//': 删除行首的 # 号
     exe sed -i "/\[multilib\]/,/Include/"'s/^#//' /etc/pacman.conf
-    PACMAN_DB_NEEDS_REFRESH=true
+    log "Refreshing package database for newly enabled multilib repository..."
+    exe pacman -Sy --noconfirm || exit 1
     success "[multilib] enabled."
 fi
 
@@ -93,17 +94,17 @@ fi
 section "Step 3/7" "Base Fonts"
 
 log "Installing noto-fonts-cjk, noto-fonts, emoji..."
-exe pacman -S --noconfirm --needed noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-cascadia-mono-nerd otf-font-awesome
-log "Base fonts installed."
+exe pacman -S --noconfirm --needed noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-cascadia-mono-nerd otf-font-awesome || exit 1
+success "Base fonts installed."
 
 # 配置 TTY 控制台字体
 log "Installing terminus-font..."
-exe pacman -S --noconfirm --needed terminus-font
+exe pacman -S --noconfirm --needed terminus-font || exit 1
 
 log "Setting font for current session..."
 # setfont 用于设置当前 TTY 的字体
 # ter-v28n: Terminus 字体，28 像素高，n 表示正常粗细
-exe setfont ter-v28n
+exe setfont ter-v28n || exit 1
 
 log "Configuring permanent vconsole font..."
 # /etc/vconsole.conf 是控制台配置文件
@@ -116,7 +117,7 @@ fi
 
 log "Restarting systemd-vconsole-setup..."
 # 重启 vconsole 服务以应用新配置
-exe systemctl restart systemd-vconsole-setup
+exe systemctl restart systemd-vconsole-setup || exit 1
 
 success "TTY font configured (ter-v28n)."
 # ------------------------------------------------------------------------------

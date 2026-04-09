@@ -313,7 +313,7 @@ EOF
 # 使用 gnome-extensions-cli 工具从 extensions.gnome.org 安装扩展
 section "Step 5/8" "Install Extensions"
 log "Installing Extensions CLI..."
-EXT_PKGS="gnome-extensions-cli gnome-shell-extension-manager"
+EXT_PKGS="gnome-extensions-cli extension-manager"
 echo "$EXT_PKGS" >> "$VERIFY_LIST"
 sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean=None $EXT_PKGS
 # 扩展列表 - 这些扩展将被安装并启用
