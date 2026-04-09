@@ -345,6 +345,12 @@ sudo -u $TARGET_USER yay -S --noconfirm --needed --answerdiff=None --answerclean
 CHINESE_CALENDAR_URL="https://gitlab.gnome.org/Nei/ChineseCalendar/-/archive/20250205/ChineseCalendar-20250205.tar.gz"
 install_chinese_calendar_dependency() {
     log "Installing ChineseCalendar dependency for Lunar Calendar..."
+
+    if ! command -v cpio >/dev/null 2>&1; then
+        log "Installing cpio for ChineseCalendar dependency..."
+        exe pacman -S --noconfirm --needed cpio || exit 1
+    fi
+
     sudo -u "$TARGET_USER" bash <<EOF
         set -e
         WORK_DIR="\$(mktemp -d)"

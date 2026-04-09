@@ -151,7 +151,60 @@ sys_dashboard() {
     echo ""
 }
 
+maybe_normalize_grub_layout() {
+    if ! command -v grub-install >/dev/null 2>&1 || ! command -v grub-mkconfig >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [ ! -d /efi/grub ]; then
+        return 0
+    fi
+
+    if [ -d /boot/grub ] && [ -f /boot/grub/grub.cfg ]; then
+        return 0
+    fi
+
+    echo -e "${H_YELLOW}>>> Detected GRUB layout under /efi/grub.${NC}"
+    # 当前GRUB在/efi/grub目录下，提示用户是否要标准化到/boot/grub。
+    # 翻译下填充到提示信息中
+    echo -e "   ${DIM} The current GRUB layout is under /efi/grub. You can standardize it to /boot/grub now. ${NC}"
+    echo ""
+    read -t 30 -p "   Normalize GRUB to /boot/grub now? [Y/n]: " grub_choice
+    local read_status=$?
+
+    if [ $read_status -ne 0 ]; then
+        echo ""
+        grub_choice="Y"
+    fi
+
+    grub_choice=${grub_choice:-Y}
+    if [[ "$grub_choice" =~ ^[nN]$ ]]; then
+        log "Keeping current GRUB layout under /efi/grub."
+        return 0
+    fi
+
+    local backup_dir="/efi/grub.bak.archsetup.$(date +%s)"
+
+    section "Preflight" "Normalize GRUB Layout"
+    log "Reinstalling GRUB with standard /boot/grub layout..."
+    exe mkdir -p /boot/grub || exit 1
+    exe grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB || exit 1
+    exe grub-mkconfig -o /boot/grub/grub.cfg || exit 1
+
+    if [ -d /efi/grub ]; then
+        log "Backing up legacy /efi/grub to $backup_dir ..."
+        exe mv /efi/grub "$backup_dir" || exit 1
+        success "Legacy /efi/grub moved to $backup_dir"
+    fi
+
+    success "GRUB layout normalized to /boot/grub."
+}
+
 # --- 主程序执行流程 ---
+
+show_banner
+sys_dashboard
+maybe_normalize_grub_layout
 
 # 可选模块选择依赖 fzf。全新系统首次运行时通常还没装它，
 # 所以要在进入菜单前先确保可用。

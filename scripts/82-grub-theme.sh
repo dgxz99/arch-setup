@@ -34,6 +34,29 @@ if ! command -v grub-mkconfig >/dev/null 2>&1; then
     exit 0
 fi
 
+detect_grub_output_path() {
+    if [ -d /boot/grub ]; then
+        echo "/boot/grub/grub.cfg"
+        return 0
+    fi
+
+    if [ -d /efi/grub ]; then
+        echo "/efi/grub/grub.cfg"
+        return 0
+    fi
+
+    return 1
+}
+
+if ! GRUB_OUTPUT="$(detect_grub_output_path)"; then
+    echo ""
+    warn "No supported GRUB directory found under /boot/grub or /efi/grub."
+    log "Skipping GRUB theme installation."
+    exit 0
+fi
+
+GRUB_DIR="$(dirname "$GRUB_OUTPUT")"
+
 section "Phase 82" "GRUB Customization & Theming"
 
 # --- Helper Functions ---
@@ -67,11 +90,12 @@ manage_kernel_param() {
 cleanup_grub_theme() {
     local minegrub_found=false
     
-    if [ -f "/etc/grub.d/05_twomenus" ] || [ -f "/boot/grub/mainmenu.cfg" ]; then
+    if [ -f "/etc/grub.d/05_twomenus" ] || [ -f "/boot/grub/mainmenu.cfg" ] || [ -f "/efi/grub/mainmenu.cfg" ]; then
         minegrub_found=true
         log "Found Minegrub artifacts. Cleaning up..."
         [ -f "/etc/grub.d/05_twomenus" ] && exe rm -f /etc/grub.d/05_twomenus
         [ -f "/boot/grub/mainmenu.cfg" ] && exe rm -f /boot/grub/mainmenu.cfg
+        [ -f "/efi/grub/mainmenu.cfg" ] && exe rm -f /efi/grub/mainmenu.cfg
     fi
     
     if command -v grub-editenv >/dev/null 2>&1; then
@@ -317,12 +341,14 @@ success "Added grub menuentry 99-shutdown"
 # 重新生成 GRUB 配置文件
 section "Step 6/6" "Apply Changes"
 log "Generating new GRUB configuration..."
+info_kv "GRUB Output" "$GRUB_OUTPUT"
 
-if exe grub-mkconfig -o /boot/grub/grub.cfg; then
+if exe grub-mkconfig -o "$GRUB_OUTPUT"; then
     success "GRUB updated successfully."
 else
     error "Failed to update GRUB."
     warn "You may need to run 'grub-mkconfig' manually."
+    exit 1
 fi
 
 log "Module 82 completed."
