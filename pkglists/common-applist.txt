@@ -2,6 +2,7 @@
 
 # Browsers & Network
 localsend                                # Cross-device file transfer
+onedrive-abraunegg                       # OneDrive client
 
 # Development & Terminal
 code                                     # Visual Studio Code
@@ -42,6 +43,7 @@ gnome-text-editor                        # Text editor
 pavucontrol                              # Audio volume control
 
 # System Tools
+7zip                                     # Archive utility
 baobab                                   # Disk usage analyzer
 mission-center                           # System monitor
 gnome-disk-utility                       # Disk utility
@@ -54,6 +56,9 @@ lolcat                                   # Rainbow output
 sl                                       # Steam locomotive joke
 
 # --- AUR ---
+
+# Browsers & Network
+AUR:google-chrome                        # Google Chrome
 
 # Communication
 AUR:linuxqq                              # Tencent QQ
@@ -86,6 +91,7 @@ AUR:mangojuice-bin                       # MangoHud GUI
 AUR:clash-party-bin                      # Clash GUI client
 
 # Tools
+AUR:snipaste                             # Screenshot and pinning tool
 AUR:shorin-contrib-git                   # Shorin helper tools
 
 # --- Flatpak ---

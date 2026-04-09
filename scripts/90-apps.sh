@@ -467,6 +467,65 @@ if flatpak list | grep -q "com.valvesoftware.Steam"; then
     STEAM_desktop_modified=true
 fi
 
+# --- Snipaste GNOME 快捷键 ---
+# 仅在系统已安装 GNOME 且检测到 Snipaste 时，追加 GNOME 自定义快捷键。
+# 这里不能沿用 20-gnome 的“整表重建”写法，否则会覆盖基础快捷键。
+if command -v gsettings &>/dev/null && pacman -Qi gnome-shell &>/dev/null; then
+    SNIPASTE_CMD="$(command -v snipaste || command -v Snipaste || true)"
+
+    if [ -n "$SNIPASTE_CMD" ]; then
+        info_kv "Config" "Snipaste detected" "Applying GNOME shortcuts"
+
+        sudo -u "$TARGET_USER" bash <<EOF
+            if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ] || [ ! -e "\${DBUS_SESSION_BUS_ADDRESS#unix:path=}" ]; then
+                echo "   -> Starting temporary D-Bus session for Snipaste shortcuts..."
+                eval \$(dbus-launch --sh-syntax)
+                trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+            fi
+
+            SCHEMA="org.gnome.settings-daemon.plugins.media-keys"
+
+            add_custom() {
+                local index="\$1"
+                local name="\$2"
+                local cmd="\$3"
+                local bind="\$4"
+
+                local path="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom\$index/"
+                local key_schema="org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:\$path"
+
+                gsettings set "\$key_schema" name "\$name"
+                gsettings set "\$key_schema" command "\$cmd"
+                gsettings set "\$key_schema" binding "\$bind"
+
+                echo "\$path"
+            }
+
+            P20=\$(add_custom 20 "snipaste-snip" "$SNIPASTE_CMD snip --block" "F1")
+            P21=\$(add_custom 21 "snipaste-pin" "$SNIPASTE_CMD snip --hold -o pin --block" "F2")
+            P22=\$(add_custom 22 "snipaste-paste" "$SNIPASTE_CMD paste --clipboard" "<Control>t")
+            P23=\$(add_custom 23 "snipaste-toggle-images" "$SNIPASTE_CMD toggle-images" "F3")
+
+            # 保留 20-gnome 已配置的快捷键，只增量追加 Snipaste 这几项。
+            CURRENT_LIST=\$(gsettings get \$SCHEMA custom-keybindings)
+            for path in "\$P20" "\$P21" "\$P22" "\$P23"; do
+                if [[ "\$CURRENT_LIST" != *"'\$path'"* ]]; then
+                    if [[ "\$CURRENT_LIST" == "@as []" || "\$CURRENT_LIST" == "[]" ]]; then
+                        CURRENT_LIST="['\$path']"
+                    else
+                        CURRENT_LIST="\${CURRENT_LIST%]}"
+                        CURRENT_LIST="\$CURRENT_LIST, '\$path']"
+                    fi
+                fi
+            done
+
+            gsettings set \$SCHEMA custom-keybindings "\$CURRENT_LIST"
+EOF
+
+        success "Snipaste GNOME shortcuts configured."
+    fi
+fi
+
 # --- LazyVim 配置 ---
 # 如果用户选择了 LazyVim，克隆配置
 if [ "$INSTALL_LAZYVIM" = true ]; then

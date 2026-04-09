@@ -7,7 +7,7 @@
 # ------------------------------------------------------------------------------
 # 安装内容：
 #   1. GNOME 核心组件 (gnome-shell, gnome-control-center, gdm)
-#   2. 常用应用 (Ghostty, Firefox, Nautilus, Celluloid)
+#   2. 常用应用 (Kitty, Firefox, Nautilus, Celluloid)
 #   3. 快捷键配置 (优化的键盘布局)
 #   4. GNOME Shell 扩展 (平铺窗口、模糊效果等)
 #   5. 输入法配置 (Fcitx5)
@@ -221,7 +221,6 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     # 基础窗口控制
     gsettings set \$SCHEMA close "['<Super>q']"
-    gsettings set \$SCHEMA show-desktop "['<Super>d']"
     gsettings set \$SCHEMA toggle-fullscreen "['<Alt><Super>f']"
     gsettings set \$SCHEMA toggle-maximized "['<Super>f']"
     
@@ -300,7 +299,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     P4=\$(add_custom 4 "editscreenshot" "gradia --screenshot" "<Shift><Super>s")
     P5=\$(add_custom 5 "gnome-control-center" "gnome-control-center" "<Control><Alt>s")
 
-    # 应用列表 (已移除重复的 P6)
+    # 应用列表
     CUSTOM_LIST="['\$P0', '\$P1', '\$P2', '\$P3', '\$P4', '\$P5']"
     gsettings set \$SCHEMA custom-keybindings "\$CUSTOM_LIST"
     
