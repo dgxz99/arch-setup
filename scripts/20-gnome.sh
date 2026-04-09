@@ -483,6 +483,22 @@ log "Linking dotfiles via dotlink..."
 exe as_user "$DOTLINK_BIN" link
 success "Dotfiles linked."
 
+# 如果 dotfiles 中提供了 GNOME 扩展设置导出文件，则在链接后立即恢复到 dconf。
+GNOME_EXT_DCONF_FILE="$HOME_DIR/.config/dconf/gnome-extensions.ini"
+if [ -f "$GNOME_EXT_DCONF_FILE" ] && command -v dconf >/dev/null 2>&1; then
+    log "Restoring GNOME extension settings from dotfiles..."
+    sudo -u "$TARGET_USER" bash <<EOF
+        if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ] || [ ! -e "\${DBUS_SESSION_BUS_ADDRESS#unix:path=}" ]; then
+            echo "   -> Starting temporary D-Bus session for dconf restore..."
+            eval \$(dbus-launch --sh-syntax)
+            trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+        fi
+
+        dconf load /org/gnome/shell/extensions/ < "$GNOME_EXT_DCONF_FILE"
+EOF
+    success "GNOME extension settings restored."
+fi
+
 # 创建模板文件
 as_user mkdir -p "$HOME_DIR/Templates"
 as_user touch "$HOME_DIR/Templates/new"

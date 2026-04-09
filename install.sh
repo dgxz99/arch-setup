@@ -270,10 +270,20 @@ fi
 # 如果找到了用户，将日志复制到该用户的 Documents 目录
 if [ -n "$FINAL_USER" ]; then
     FINAL_DOCS="/home/$FINAL_USER/Documents"
+    GUIDE_FILE="$BASE_DIR/resources/必看-Gnome使用方法.txt"
     mkdir -p "$FINAL_DOCS"
-    cp "$TEMP_LOG_FILE" "$FINAL_DOCS/log-daguo-arch-setup.txt"
+
+    if [ -f "$TEMP_LOG_FILE" ]; then
+        cp "$TEMP_LOG_FILE" "$FINAL_DOCS/log-daguo-arch-setup.txt"
+        echo -e "   ${H_BLUE}●${NC} Log Saved     : ${BOLD}$FINAL_DOCS/log-daguo-arch-setup.txt${NC}"
+    fi
+
+    if [ -f "$GUIDE_FILE" ]; then
+        cp "$GUIDE_FILE" "$FINAL_DOCS/必看-Gnome使用方法.txt"
+        echo -e "   ${H_BLUE}●${NC} Guide Saved   : ${BOLD}$FINAL_DOCS/必看-Gnome使用方法.txt${NC}"
+    fi
+
     chown -R "$FINAL_USER:$FINAL_USER" "$FINAL_DOCS"
-    echo -e "   ${H_BLUE}●${NC} Log Saved     : ${BOLD}$FINAL_DOCS/log-daguo-arch-setup.txt${NC}"
 fi
 
 # --- 重启倒计时 ---

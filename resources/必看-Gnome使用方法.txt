@@ -1,0 +1,149 @@
+==============================
+GNOME 使用说明
+==============================
+
+这套安装脚本当前只面向 GNOME。
+安装完成后，系统会自动部署基础 GNOME 配置、常用快捷键、输入法、可选应用和部分开发环境配置。
+
+一、首次进入系统后建议做的事
+
+1. 先联网，确认网络正常。
+2. 打开“设置 -> 键盘”，快速浏览一次快捷键是否符合你的使用习惯。
+3. 如果安装了 Docker，需要重新登录一次，`docker` 用户组权限才会生效。
+4. 如果选择安装了开发工具模块，可检查：
+   - Maven 配置：`~/.m2/settings.xml`
+   - uv 配置：`~/.config/uv/uv.toml`
+   - npm 配置：`npm config list`
+
+二、默认快捷键
+
+[应用启动]
+浏览器 Firefox              : Super + B
+终端 Kitty                  : Super + T
+Mission Center              : Super + `
+文件管理器 Nautilus         : Super + E
+Gradia 截图编辑             : Shift + Super + S
+系统设置                    : Ctrl + Alt + S
+
+[窗口管理]
+关闭窗口                    : Super + Q
+最大化切换                  : Super + F
+全屏切换                    : Alt + Super + F
+
+[工作区]
+切换到左侧工作区            : Shift + Super + Q
+切换到右侧工作区            : Shift + Super + E
+窗口移到左侧工作区          : Ctrl + Super + Q
+窗口移到右侧工作区          : Ctrl + Super + E
+
+[GNOME 自带截图]
+截图                        : Shift + Ctrl + Super + A
+窗口截图                    : Ctrl + Super + A
+截图面板                    : Alt + Super + A
+
+[界面功能]
+应用列表                    : Super + G
+快速设置                    : Ctrl + Super + S
+放大镜                      : Alt + Super + 0
+
+三、可选应用的额外说明
+
+1. 如果安装了 Snipaste，并且系统为 GNOME，会自动追加以下快捷键：
+   - F1：截图
+   - Ctrl + F1：截图并贴图
+   - Ctrl + T：贴图
+   - F3：显示/隐藏贴图
+
+2. 如果安装了 virt-manager，脚本会自动：
+   - 安装 KVM/QEMU 依赖
+   - 启用 `libvirtd`
+   - 把当前用户加入 `libvirt`、`kvm`、`input` 组
+
+3. 如果安装了 Wine，脚本会自动初始化 Wine，并复制仓库内提供的 Windows 中文字体。
+
+4. 如果安装了 `shorin`，脚本会自动执行：
+   - `shorin link`
+
+四、Dotfiles
+
+GNOME 阶段会自动克隆并链接个人 dotfiles：
+
+- 仓库位置：`~/.local/share/daguo-linux-dotfiles`
+- 链接命令：`dotlink link`
+
+如果后续更新了 dotfiles，可手动执行：
+
+`dotlink link`
+
+如需取消软链接：
+
+`dotlink unlink`
+
+五、常用命令
+
+系统信息：
+- `fastfetch`
+
+资源监控：
+- `btop`
+- `missioncenter`
+
+磁盘查看：
+- `gdu`
+- `baobab`
+
+开发工具：
+- `uv`
+- `node`
+- `npm`
+- `docker`
+
+六、日志与排查
+
+安装结束后，以下文件会复制到 `~/Documents`：
+
+- `log-daguo-arch-setup.txt`
+- `必看-Gnome使用方法.txt`
+
+如果可选应用安装失败，还可能看到：
+
+- `~/Documents/安装失败的软件.txt`
+
+七、后续手动配置
+
+以下内容不由当前脚本自动完成，安装后按需手动处理。
+
+1. Windows 字体
+
+把自己的 Windows 字体复制到 `/usr/local/share/fonts` 后刷新缓存：
+
+`sudo cp -rf <你的字体目录>/* /usr/local/share/fonts/`
+`sudo fc-cache -fv`
+
+2. OneDrive 与 Rime 同步
+
+首次登录 OneDrive：
+
+`onedrive`
+
+Rime 同步配置文件：
+
+`~/.local/share/fcitx5/rime/install.yaml`
+
+建议改成：
+
+`installation_id: "xxxx"`
+`sync_dir: "/home/daguo/OneDrive/RimeSync"`
+
+修改完成后可执行：
+
+`fcitx5-remote -r`
+
+3. 常见软件的后续配置
+
+- JetBrains：激活，同步设置
+- Typora：激活，图床
+- RustDesk：设置远端服务器
+- Termora：同步
+- VS Code：登录 Settings Sync 
+- Clash Party：同步

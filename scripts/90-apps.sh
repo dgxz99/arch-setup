@@ -502,7 +502,7 @@ if command -v gsettings &>/dev/null && pacman -Qi gnome-shell &>/dev/null; then
             }
 
             P20=\$(add_custom 20 "snipaste-snip" "$SNIPASTE_CMD snip --block" "F1")
-            P21=\$(add_custom 21 "snipaste-pin" "$SNIPASTE_CMD snip --hold -o pin --block" "F2")
+            P21=\$(add_custom 21 "snipaste-pin" "$SNIPASTE_CMD snip --hold -o pin --block" "<Control>F1")
             P22=\$(add_custom 22 "snipaste-paste" "$SNIPASTE_CMD paste --clipboard" "<Control>t")
             P23=\$(add_custom 23 "snipaste-toggle-images" "$SNIPASTE_CMD toggle-images" "F3")
 
