@@ -379,27 +379,28 @@ EOF
 
 # 扩展列表 - 这些扩展将被安装并启用
 EXTENSION_LIST=(
-    "arch-update@RaphaelRochet"                      # Arch 更新指示器
-    "aztaskbar@aztaskbar.gitlab.com"                 # 任务栏
-    "blur-my-shell@aunetx"                           # Shell 模糊效果
-    "caffeine@patapon.info"                          # 阻止休眠
-    "clipboard-indicator@tudmotu.com"                # 剪贴板管理
-    "color-picker@tuberry"                           # 取色器
-    "desktop-cube@schneegans.github.com"             # 桌面立方体效果
-    "ding@rastersoft.com"                            # Desktop Icons NG
-    "fuzzy-application-search@mkhl.codeberg.page"    # 模糊搜索
-    "lockkeys@vaina.lt"                              # 键盘锁指示器
-    "lunar-calendar@gs-extensions.zzrough.org"       # Lunar Calendar 农历
-    "tilingshell@ferrarodomenico.com"                # 平铺窗口管理
-    "top-bar-organizer@julian.gse.jsts.xyz"          # Top Bar Organizer
-    "user-theme@gnome-shell-extensions.gcampax.github.com" # 用户主题
-    "kimpanel@kde.org"                               # Fcitx5 输入法面板
-    "rounded-window-corners@fxgn"                    # 圆角窗口
-    "appindicatorsupport@rgcjonas.gmail.com"         # 系统托盘支持
-    "CoverflowAltTab@palatis.blogspot.com"           # 3D 覆盖流样式的 Alt-Tab 切换
-    "drive-menu@gnome-shell-extensions.gcampax.github.com" # 顶部面板U盘/移动硬盘弹出菜单
-    "dash-to-dock@micxgx.gmail.com"                  # Dash to Dock
-    "app-hider@lynith.dev"                           # 隐藏菜单中的App
+    "arch-update@RaphaelRochet"                                 # Arch 更新指示器
+    "aztaskbar@aztaskbar.gitlab.com"                            # 任务栏
+    "blur-my-shell@aunetx"                                      # Shell 模糊效果
+    "caffeine@patapon.info"                                     # 阻止休眠
+    "clipboard-indicator@tudmotu.com"                           # 剪贴板管理
+    "color-picker@tuberry"                                      # 取色器
+    "desktop-cube@schneegans.github.com"                        # 桌面立方体效果
+    "ding@rastersoft.com"                                       # Desktop Icons NG
+    "fuzzy-application-search@mkhl.codeberg.page"               # 模糊搜索
+    "lockkeys@vaina.lt"                                         # 键盘锁指示器
+    "lunarcal@ailin.nemui"                                      # Lunar Calendar 农历
+    "tilingshell@ferrarodomenico.com"                           # 平铺窗口管理
+    "top-bar-organizer@julian.gse.jsts.xyz"                     # Top Bar Organizer
+    "user-theme@gnome-shell-extensions.gcampax.github.com"      # 用户主题
+    "kimpanel@kde.org"                                          # Fcitx5 输入法面板
+    "rounded-window-corners@fxgn"                               # 圆角窗口
+    "appindicatorsupport@rgcjonas.gmail.com"                    # 系统托盘支持
+    "CoverflowAltTab@palatis.blogspot.com"                      # 3D 覆盖流样式的 Alt-Tab 切换
+    "drive-menu@gnome-shell-extensions.gcampax.github.com"      # 顶部面板U盘/移动硬盘弹出菜单
+    "dash-to-dock@micxgx.gmail.com"                             # Dash to Dock
+    "app-hider@lynith.dev"                                      # 隐藏菜单中的App
+    "system-monitor@gnome-shell-extensions.gcampax.github.com"  # 系统监视器，显示 CPU/RAM/网络等状态
 )
 log "Downloading extensions..."
 install_chinese_calendar_dependency
@@ -450,7 +451,7 @@ sudo -u "$TARGET_USER" bash <<EOF
         "ding@rastersoft.com"
         "fuzzy-application-search@mkhl.codeberg.page"
         "lockkeys@vaina.lt"
-        "lunar-calendar@gs-extensions.zzrough.org"
+        "lunarcal@ailin.nemui"
         "tilingshell@ferrarodomenico.com"
         "kimpanel@kde.org"
         "rounded-window-corners@fxgn"
@@ -460,6 +461,7 @@ sudo -u "$TARGET_USER" bash <<EOF
         "dash-to-dock@micxgx.gmail.com"
         "app-hider@lynith.dev"
         "top-bar-organizer@julian.gse.jsts.xyz"
+        "system-monitor@gnome-shell-extensions.gcampax.github.com"
     )
 
     for ext in "\${ext_array[@]}"; do
