@@ -24,6 +24,8 @@ Mission Center              : Super + `
 文件管理器 Nautilus         : Super + E
 Gradia 截图编辑             : Shift + Super + S
 系统设置                    : Ctrl + Alt + S
+随机切换壁纸                : Super + F10
+随机切换二次元壁纸          : Shift + Super + F10
 
 [窗口管理]
 关闭窗口                    : Super + Q
@@ -46,6 +48,12 @@ Gradia 截图编辑             : Shift + Super + S
 快速设置                    : Ctrl + Super + S
 放大镜                      : Alt + Super + 0
 
+[若安装了 Snipaste]
+截图                        : F1
+截图并贴图                  : Ctrl + F1
+贴图                        : Ctrl + T
+显示/隐藏贴图               : F3
+
 三、可选应用的额外说明
 
 1. 如果安装了 Snipaste，并且系统为 GNOME，会自动追加以下快捷键：
@@ -53,6 +61,7 @@ Gradia 截图编辑             : Shift + Super + S
    - Ctrl + F1：截图并贴图
    - Ctrl + T：贴图
    - F3：显示/隐藏贴图
+   这些快捷键会在保留原有 GNOME 快捷键的基础上增量追加，不会覆盖前面文档中的常用系统快捷键。
 
 2. 如果安装了 virt-manager，脚本会自动：
    - 安装 KVM/QEMU 依赖

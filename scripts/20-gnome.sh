@@ -339,9 +339,11 @@ sudo -u "$TARGET_USER" bash <<EOF
     P3=\$(add_custom 3 "opennautilus" "nautilus" "<Super>e")
     P4=\$(add_custom 4 "editscreenshot" "gradia --screenshot" "<Shift><Super>s")
     P5=\$(add_custom 5 "gnome-control-center" "gnome-control-center" "<Control><Alt>s")
+    P6=\$(add_custom 6 "gnome-random-wallpaper" "gnome-random-wallpaper" "<Super>F10")
+    P7=\$(add_custom 7 "gnome-random-anime-wallpaper" "gnome-random-anime-wallpaper" "<Super><Shift>F10")
 
     # 应用列表
-    CUSTOM_LIST="['\$P0', '\$P1', '\$P2', '\$P3', '\$P4', '\$P5']"
+    CUSTOM_LIST="['\$P0', '\$P1', '\$P2', '\$P3', '\$P4', '\$P5', '\$P6', '\$P7']"
     gsettings set \$SCHEMA custom-keybindings "\$CUSTOM_LIST"
     
     echo "   ➜ Shortcuts synced with config files successfully."
@@ -619,7 +621,7 @@ if [ ! -f "$DOTLINK_BIN" ]; then
 fi
 
 # Git 在大多数情况下会保留已提交的可执行位，但这里仍显式修正一次，避免文件模式或文件系统差异导致执行失败。
-exe chmod +x "$DOTLINK_BIN"
+exe as_user chmod +x "$DOTLINK_BIN"
 
 log "Linking dotfiles via dotlink..."
 exe as_user "$DOTLINK_BIN" link
