@@ -151,6 +151,7 @@ GNOME_COMMON_PKGS+=(
     gnome-font-viewer
     gnome-clocks
     gnome-calculator
+    gnome-system-monitor
 )
 
 log "Installing GNOME desktop packages..."
@@ -361,6 +362,26 @@ echo "$THEME_PKGS" >> "$VERIFY_LIST"
 as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None $THEME_PKGS
 success "Themes installed."
 
+WALLPAPER_SRC_DIR="$PARENT_DIR/resources/wallpapers"
+WALLPAPER_DEST_DIR="$HOME_DIR/Pictures/Wallpapers"
+DEFAULT_WALLPAPER_URI=""
+
+if [ -d "$WALLPAPER_SRC_DIR" ]; then
+    log "Copying bundled wallpapers..."
+    exe as_user mkdir -p "$WALLPAPER_DEST_DIR"
+    exe as_user cp -rf "$WALLPAPER_SRC_DIR"/. "$WALLPAPER_DEST_DIR"
+
+    mapfile -t WALLPAPER_FILES < <(find "$WALLPAPER_SRC_DIR" -maxdepth 1 -type f | sort)
+    if [ ${#WALLPAPER_FILES[@]} -gt 0 ]; then
+        DEFAULT_WALLPAPER_URI="file://$WALLPAPER_DEST_DIR/$(basename "${WALLPAPER_FILES[0]}")"
+        info_kv "Wallpaper" "Default" "$(basename "${WALLPAPER_FILES[0]}")"
+    else
+        warn "No wallpaper files found under $WALLPAPER_SRC_DIR"
+    fi
+else
+    warn "Wallpaper resource directory not found: $WALLPAPER_SRC_DIR"
+fi
+
 log "Configuring system appearance settings..."
 sudo -u "$TARGET_USER" bash <<EOF
     # D-Bus Fix
@@ -385,6 +406,12 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set org.gnome.desktop.interface icon-theme 'Yaru-purple'
     gsettings set org.gnome.desktop.interface gtk-theme 'Yaru-purple-dark'
     gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+
+    if [ -n "$DEFAULT_WALLPAPER_URI" ]; then
+        gsettings set org.gnome.desktop.background picture-uri "$DEFAULT_WALLPAPER_URI"
+        gsettings set org.gnome.desktop.background picture-uri-dark "$DEFAULT_WALLPAPER_URI"
+        gsettings set org.gnome.desktop.background picture-options 'zoom'
+    fi
 
     # 标题栏动作
     gsettings set org.gnome.desktop.wm.preferences action-double-click-titlebar 'toggle-maximize'
