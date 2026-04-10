@@ -108,7 +108,6 @@ GNOME_DESKTOP_PKGS=(
     gnome-shell
     gnome-desktop
     gdm
-    gnome-backgrounds
     gnome-control-center
     gnome-tweaks
     kitty
@@ -146,6 +145,14 @@ GNOME_FILE_PKGS=(
     gst-libav
 )
 
+# 安装常用的 GNOME 桌面常用工具，这些工具虽然不是核心组件，但在日常使用中非常实用，提升整体体验。
+GNOME_COMMON_PKGS+=(
+    gnome-text-editor
+    gnome-font-viewer
+    gnome-clocks
+    gnome-calculator
+)
+
 log "Installing GNOME desktop packages..."
 exe pacman -S --noconfirm --needed "${GNOME_DESKTOP_PKGS[@]}"
 printf '%s\n' "${GNOME_DESKTOP_PKGS[@]}" >> "$VERIFY_LIST"
@@ -156,13 +163,18 @@ exe pacman -S --noconfirm --needed "${GNOME_FILE_PKGS[@]}"
 printf '%s\n' "${GNOME_FILE_PKGS[@]}" >> "$VERIFY_LIST"
 success "GNOME file integration packages installed."
 
+log "Installing GNOME common tools..."
+exe pacman -S --noconfirm --needed "${GNOME_COMMON_PKGS[@]}"
+printf '%s\n' "${GNOME_COMMON_PKGS[@]}" >> "$VERIFY_LIST"
+success "GNOME common tools installed."
+
 # 启用 GDM (GNOME Display Manager)
 log "Enabling GDM..."
 exe systemctl enable gdm.service
 success "GDM enabled."
 
 #=================================================
-# Step 2: Set default terminal
+# Step 2: Set default terminal & Shell Tools
 #=================================================
 # 第二步：设置默认终端
 # 将 Kitty 设为 GNOME 默认终端
@@ -179,15 +191,35 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     gsettings set org.gnome.desktop.default-applications.terminal exec 'kitty'
     gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
-    gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty'
+    # Nautilus 右键“在终端中打开”依赖 nautilus-open-any-terminal 的单独配置。
+    # 只装包不指定后端时，这个菜单项经常不会按预期工作。
+    if gsettings writable com.github.stunkymonkey.nautilus-open-any-terminal terminal >/dev/null 2>&1; then
+        gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty'
+    fi
 EOF
-success "GNOME default terminal configured."
 
 # 让 Nautilus 重新加载扩展，确保“在终端中打开”菜单项生效。
 if command -v nautilus >/dev/null 2>&1; then
     log "Restarting Nautilus to load terminal extension..."
     sudo -u "$TARGET_USER" nautilus -q >/dev/null 2>&1 || true
 fi
+
+success "GNOME default terminal configured."
+
+# 安装终端常用工具
+# - starship: 终端提示符
+# - eza: ls 替代品
+# - fish: 交互式 shell
+# - zoxide: 智能目录跳转
+# - jq: JSON 处理工具
+# - timg: 终端图片查看器
+# - imagemagick: 图像处理工具，提供 convert 命令
+# - bat: cat 替代品，带语法高亮
+log "Installing shell tools..."
+SHELL_TOOLS_PKGS="starship eza fish zoxide jq timg imagemagick bat"
+echo "$SHELL_TOOLS_PKGS" >> "$VERIFY_LIST"
+exe pacman -S --noconfirm --needed $SHELL_TOOLS_PKGS
+success "Shell tools installed."
 
 #=================================================
 # Step 3: Set locale
@@ -269,17 +301,6 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set \$SCHEMA toggle-quick-settings "['<Control><Super>s']"
     gsettings set \$SCHEMA toggle-message-tray "[]"
 
-    # 会话菜单兜底：确保 GNOME 不会因为锁定策略而隐藏注销/切换用户。
-    gsettings set org.gnome.shell always-show-log-out true
-
-    # 顶栏时钟与日历显示：固定为中文场景下更常用的显示方式。
-    gsettings set org.gnome.desktop.interface clock-format '24h'
-    gsettings set org.gnome.desktop.interface clock-show-date true
-    gsettings set org.gnome.desktop.interface clock-show-seconds true
-    gsettings set org.gnome.desktop.interface clock-show-weekday true
-    gsettings set org.gnome.desktop.calendar show-weekdate true
-    gsettings set org.gnome.desktop.datetime automatic-timezone true
-
     # ---------------------------------------------------------
     # 3. org.gnome.settings-daemon.plugins.media-keys (媒体与自定义)
     # ---------------------------------------------------------
@@ -327,11 +348,64 @@ sudo -u "$TARGET_USER" bash <<EOF
 EOF
 
 #=================================================
-# Step 5: Extensions
+# Step 5: System Appearance
 #=================================================
-# 第五步：安装 GNOME Shell 扩展
+# 第五步：系统美化设置
+section "Step 5/8" "System Appearance"
+
+log "Installing Bibata cursor and Yaru themes..."
+THEME_PKGS="bibata-cursor-theme yaru-gtk-theme yaru-icon-theme"
+echo "$THEME_PKGS" >> "$VERIFY_LIST"
+as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None $THEME_PKGS
+success "Themes installed."
+
+log "Configuring system appearance settings..."
+sudo -u "$TARGET_USER" bash <<EOF
+    # D-Bus Fix
+    if [ -z "\$DBUS_SESSION_BUS_ADDRESS" ]; then
+        eval \$(dbus-launch --sh-syntax)
+        trap "kill \$DBUS_SESSION_BUS_PID" EXIT
+    fi
+
+    # 会话菜单兜底：确保 GNOME 不会因为锁定策略而隐藏注销/切换用户。
+    gsettings set org.gnome.shell always-show-log-out true
+
+    # 顶栏时钟与日历显示：固定为中文场景下更常用的显示方式。
+    gsettings set org.gnome.desktop.interface clock-format '24h'
+    gsettings set org.gnome.desktop.interface clock-show-date true
+    gsettings set org.gnome.desktop.interface clock-show-seconds true
+    gsettings set org.gnome.desktop.interface clock-show-weekday true
+    gsettings set org.gnome.desktop.calendar show-weekdate true
+    gsettings set org.gnome.desktop.datetime automatic-timezone true
+
+    # 外观主题设置：使用 Bibata 现代经典光标主题，Yaru 紫色 GTK 和图标主题，并启用暗色模式。
+    gsettings set org.gnome.desktop.interface cursor-theme 'Bibata-Modern-Classic'
+    gsettings set org.gnome.desktop.interface icon-theme 'Yaru-purple'
+    gsettings set org.gnome.desktop.interface gtk-theme 'Yaru-purple-dark'
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+
+    # 标题栏动作
+    gsettings set org.gnome.desktop.wm.preferences action-double-click-titlebar 'toggle-maximize'
+    gsettings set org.gnome.desktop.wm.preferences action-middle-click-titlebar 'lower'
+    gsettings set org.gnome.desktop.wm.preferences action-right-click-titlebar 'menu'
+    
+    # 标题栏按钮
+    gsettings set org.gnome.desktop.wm.preferences button-layout ':minimize,maximize,close'
+    
+    # 点击与窗口行为
+    gsettings set org.gnome.mutter attach-modal-dialogs true
+    gsettings set org.gnome.mutter center-new-windows true
+    gsettings set org.gnome.desktop.wm.preferences mouse-button-modifier 'disabled'
+    gsettings set org.gnome.desktop.wm.preferences resize-with-right-button true
+    gsettings set org.gnome.desktop.wm.preferences focus-mode 'click'
+EOF
+
+#=================================================
+# Step 6: Extensions
+#=================================================
+# 第六步：安装 GNOME Shell 扩展
 # 使用 gnome-extensions-cli 工具从 extensions.gnome.org 安装扩展
-section "Step 5/8" "Install Extensions"
+section "Step 6/8" "Install Extensions"
 log "Installing Extensions CLI..."
 EXT_PKGS="gnome-extensions-cli extension-manager"
 echo "$EXT_PKGS" >> "$VERIFY_LIST"
@@ -397,6 +471,7 @@ EXTENSION_LIST=(
     "dash-to-dock@micxgx.gmail.com"                             # Dash to Dock
     "app-hider@lynith.dev"                                      # 隐藏菜单中的App
     "system-monitor@gnome-shell-extensions.gcampax.github.com"  # 系统监视器，显示 CPU/RAM/网络等状态
+    "notification-configurator@exposedcat"                      # 通知配置器，允许自定义通知行为和外观
 )
 log "Downloading extensions..."
 install_chinese_calendar_dependency
@@ -458,6 +533,7 @@ sudo -u "$TARGET_USER" bash <<EOF
         "app-hider@lynith.dev"
         "top-bar-organizer@julian.gse.jsts.xyz"
         "system-monitor@gnome-shell-extensions.gcampax.github.com"
+        "notification-configurator@exposedcat"
     )
 
     for ext in "\${ext_array[@]}"; do
@@ -483,9 +559,9 @@ sudo -u "$TARGET_USER" bash <<EOF
 EOF
 
 #=================================================
-# Step 6: Nautilus Fix & Input Method
+# Step 7: Nautilus Fix & Input Method
 #=================================================
-section "Step 6/8" "Configure Nautilus and Input Method"
+section "Step 7/8" "Configure Nautilus and Input Method"
 # Nautilus NVIDIA/输入法修复
 configure_nautilus_user
 
@@ -502,9 +578,9 @@ EOT
 fi
 
 #=================================================
-# Dotfiles
+# Step 8: Deploying Dotfiles
 #=================================================
-section "Step 7/8" "Deploying dotfiles"
+section "Step 8/8" "Deploying dotfiles"
 DOTFILES_REPO_URL="${DAGUO_DOTFILES_REPO_URL:-https://github.com/dgxz99/linux-dotfiles.git}"
 DOTFILES_PARENT_DIR="$HOME_DIR/.local/share"
 DOTFILES_DIR="$DOTFILES_PARENT_DIR/daguo-linux-dotfiles"
@@ -582,25 +658,9 @@ if command -v flatpak &>/dev/null; then
     sudo -u "$TARGET_USER" flatpak override --user --filesystem=xdg-config/fontconfig
 fi
 
-# 4. 安装终端常用工具
-# - starship: 终端提示符
-# - eza: ls 替代品
-# - fish: 交互式 shell
-# - zoxide: 智能目录跳转
-# - jq: JSON 处理工具
-# - timg: 终端图片查看器
-# - imagemagick: 图像处理工具，提供 convert 命令
-# - bat: cat 替代品，带语法高亮
-log "Installing shell tools..."
-SHELL_TOOLS_PKGS="starship eza fish zoxide jq timg imagemagick bat"
-echo "$SHELL_TOOLS_PKGS" >> "$VERIFY_LIST"
-exe pacman -S --noconfirm --needed $SHELL_TOOLS_PKGS
-success "Shell tools installed."
-
 # 隐藏无用的 .desktop 文件
-section "Step 8/8" "Hiding useless .desktop files"
-log "Hiding useless .desktop files"
-run_hide_desktop_file
+# log "Hiding useless .desktop files"
+# run_hide_desktop_file
 
 log "Installation Complete! Please reboot."
 cleanup_sudo

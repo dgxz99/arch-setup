@@ -36,10 +36,7 @@ drawio-desktop                           # Diagram editor
 rustdesk                                 # Remote desktop tool
 upscaler                                 # Image upscaler
 curtail                                  # Image compressor
-gnome-font-viewer                        # Font viewer
 gnome-calendar                           # Calendar
-gnome-clocks                             # Clocks
-gnome-text-editor                        # Text editor
 pavucontrol                              # Audio volume control
 
 # System Tools

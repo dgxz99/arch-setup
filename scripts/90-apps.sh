@@ -522,7 +522,6 @@ if command -v gsettings &>/dev/null && pacman -Qi gnome-shell &>/dev/null; then
 
             gsettings set \$SCHEMA custom-keybindings "\$CURRENT_LIST"
 EOF
-
         success "Snipaste GNOME shortcuts configured."
     fi
 fi
@@ -581,9 +580,9 @@ fi
 # 在用户目录中创建覆盖文件，设置 NoDisplay=true
 # 隐藏各种开发工具和系统工具的桌面文件
 # 这些通常不需要在应用菜单中显示
-section "Config" "Hiding useless .desktop files"
-log "Hiding useless .desktop files"
-run_hide_desktop_file
+# section "Config" "Hiding useless .desktop files"
+# log "Hiding useless .desktop files"
+# run_hide_desktop_file
 
 # ------------------------------------------------------------------------------
 # [清理] 移除临时 SUDO 配置
