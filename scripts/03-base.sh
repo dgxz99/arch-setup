@@ -183,11 +183,20 @@ success "ArchLinuxCN configured."
 #
 # 注意：这里直接从 archlinuxcn 安装预编译版，不需要从 AUR 编译
 
-section "Step 5/7" "AUR Helpers"
+section "Step 5/7" "AUR Helpers & Makepkg Config"
+
+log "Optimizing makepkg configuration..."
+
+# 1. 全局禁用 debug：避免二进制 AUR 包的文件冲突，并节约无意义的提取时间
+exe sudo sed -i '/^OPTIONS=/s/\([ \t(]\)debug\([ \t)]\)/\1!debug\2/' /etc/makepkg.conf
+
+# 2. 启用多线程编译：自动获取 CPU 核心数并赋值给 MAKEFLAGS，极大加速源码编译
+exe sudo sed -i "s/^#*MAKEFLAGS=.*/MAKEFLAGS=\"-j$(nproc)\"/g" /etc/makepkg.conf
 
 log "Installing yay and paru..."
-exe pacman -S --noconfirm --needed base-devel yay paru
-success "Helpers installed."
+# 确保 base-devel 已安装，这是编译任何 AUR 包的基础前提
+exe sudo pacman -S --noconfirm --needed base-devel yay paru
+success "Makepkg optimized and AUR helpers installed."
 
 # ------------------------------------------------------------------------------
 # 6. Configure NetworkManager Backend (iwd)

@@ -74,7 +74,7 @@ AUR:webstorm                             # JetBrains WebStorm
 AUR:liberica-jdk-8-full-bin              # Liberica JDK 8
 AUR:liberica-jdk-21-full-bin             # Liberica JDK 21
 AUR:liberica-jdk-25-full-bin             # Liberica JDK 25
-AUR:termora-bin                          # SSH and terminal manager
+# AUR:termora-bin                        # SSH and terminal manager，no beta version
 
 # Office
 AUR:wps-office-cn                        # WPS Office

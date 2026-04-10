@@ -128,7 +128,13 @@ set_latest_java() {
     fi
 
     local latest_java
-    latest_java=$(printf "%s\n" "${java_envs[@]}" | sort -V | tail -n 1)
+    # 核心：提取数字 -> 纯数字排序 -> 取最大值 -> 还原名称
+    latest_java=$(printf "%s\n" "${java_envs[@]}" | \
+        sed -E 's/^[^0-9]*([0-9]+).*$/\1 &/' | \
+        sort -n | \
+        tail -n 1 | \
+        awk '{print $2}')
+
     info_kv "Java" "Latest detected" "$latest_java"
     exe archlinux-java set "$latest_java"
     success "Default Java set to $latest_java"

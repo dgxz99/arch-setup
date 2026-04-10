@@ -105,6 +105,7 @@ section 'Step 1/8' 'Install GNOME Core Packages'
 # - dnsmasq: 轻量级 DNS 和 DHCP 服务器，在某些网络配置中可能需要
 # - pacman-contrib: 包含 pactree 等工具，方便分析包依赖关系
 GNOME_DESKTOP_PKGS=(
+    gnome-shell
     gnome-desktop
     gdm
     gnome-backgrounds
@@ -178,12 +179,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     gsettings set org.gnome.desktop.default-applications.terminal exec 'kitty'
     gsettings set org.gnome.desktop.default-applications.terminal exec-arg '-e'
-
-    # Nautilus 右键“在终端中打开”依赖 nautilus-open-any-terminal 的单独配置。
-    # 只装包不指定后端时，这个菜单项经常不会按预期工作。
-    if gsettings writable com.github.stunkymonkey.nautilus-open-any-terminal terminal >/dev/null 2>&1; then
-        gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty'
-    fi
+    gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty'
 EOF
 success "GNOME default terminal configured."
 

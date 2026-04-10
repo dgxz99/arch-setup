@@ -232,47 +232,13 @@ trap cleanup_sudo_temp EXIT
 # 3. Install Applications
 # ------------------------------------------------------------------------------
 # 第三步：安装应用
-# 分三个阶段: A=官方仓库, B=AUR, C=Flatpak
-
-# --- A. 官方仓库应用 (批量模式) ---
-# 官方仓库应用使用 yay 批量安装，效率更高
-if [ ${#REPO_APPS[@]} -gt 0 ]; then
-    section "Step 1/3" "Official Repository Packages (Batch)"
-    
-    # 过滤已安装的应用
-    REPO_QUEUE=()
-    for pkg in "${REPO_APPS[@]}"; do
-        if pacman -Qi "$pkg" &>/dev/null; then
-            log "Skipping '$pkg' (Already installed)."
-        else
-            REPO_QUEUE+=("$pkg")
-        fi
-    done
-
-    if [ ${#REPO_QUEUE[@]} -gt 0 ]; then
-        BATCH_LIST="${REPO_QUEUE[*]}"
-        info_kv "Installing" "${#REPO_QUEUE[@]} packages via Pacman/Yay"
-        
-        # 使用 yay 批量安装
-        # --answerdiff=None --answerclean=None: 自动跳过 diff 和 clean 提示
-        if ! exe as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-            error "Batch installation failed. Some repo packages might be missing."
-            # 将所有包记录为失败
-            for pkg in "${REPO_QUEUE[@]}"; do
-                FAILED_PACKAGES+=("repo:$pkg")
-            done
-        else
-            success "Repo batch installation completed."
-        fi
-    else
-        log "All Repo packages are already installed."
-    fi
-fi
+# 分三个阶段: B=AUR, A=官方仓库, C=Flatpak
+# 先安装AUR，因为存在java等依赖关系，后安装官方仓库和Flatpak
 
 # --- B. AUR 应用 (单独模式 + 重试) ---
 # AUR 应用逐个安装，失败后自动重试
 if [ ${#AUR_APPS[@]} -gt 0 ]; then
-    section "Step 2/3" "AUR Packages "
+    section "Step 1/3" "AUR Packages "
     
     for app in "${AUR_APPS[@]}"; do
         if pacman -Qi "$app" &>/dev/null; then
@@ -304,6 +270,41 @@ if [ ${#AUR_APPS[@]} -gt 0 ]; then
             FAILED_PACKAGES+=("aur:$app")
         fi
     done
+fi
+
+# --- A. 官方仓库应用 (批量模式) ---
+# 官方仓库应用使用 yay 批量安装，效率更高
+if [ ${#REPO_APPS[@]} -gt 0 ]; then
+    section "Step 2/3" "Official Repository Packages (Batch)"
+    
+    # 过滤已安装的应用
+    REPO_QUEUE=()
+    for pkg in "${REPO_APPS[@]}"; do
+        if pacman -Qi "$pkg" &>/dev/null; then
+            log "Skipping '$pkg' (Already installed)."
+        else
+            REPO_QUEUE+=("$pkg")
+        fi
+    done
+
+    if [ ${#REPO_QUEUE[@]} -gt 0 ]; then
+        BATCH_LIST="${REPO_QUEUE[*]}"
+        info_kv "Installing" "${#REPO_QUEUE[@]} packages via Pacman/Yay"
+        
+        # 使用 yay 批量安装
+        # --answerdiff=None --answerclean=None: 自动跳过 diff 和 clean 提示
+        if ! exe as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
+            error "Batch installation failed. Some repo packages might be missing."
+            # 将所有包记录为失败
+            for pkg in "${REPO_QUEUE[@]}"; do
+                FAILED_PACKAGES+=("repo:$pkg")
+            done
+        else
+            success "Repo batch installation completed."
+        fi
+    else
+        log "All Repo packages are already installed."
+    fi
 fi
 
 # --- C. Flatpak 应用 (单独模式) ---

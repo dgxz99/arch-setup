@@ -164,26 +164,24 @@ maybe_normalize_grub_layout() {
         return 0
     fi
 
-    echo -e "${H_YELLOW}>>> Detected GRUB layout under /efi/grub.${NC}"
-    # 当前GRUB在/efi/grub目录下，提示用户是否要标准化到/boot/grub。
-    # 翻译下填充到提示信息中
-    echo -e "   ${DIM} The current GRUB layout is under /efi/grub. You can standardize it to /boot/grub now. ${NC}"
+    echo -e "${H_RED}>>> CRITICAL: Detected GRUB layout under /efi/grub.${NC}"
+    echo -e "   ${H_YELLOW}This action will reinstall GRUB, regenerate /boot/grub/grub.cfg, and permanently delete /efi/grub.${NC}"
+    echo -e "   ${H_YELLOW}EFI partition changes are NOT covered by Btrfs/Snapper snapshots and cannot be rolled back automatically.${NC}"
+    echo -e "   ${DIM}Type YES to continue. Press Enter, timeout, or any other input to keep the current layout.${NC}"
     echo ""
-    read -t 30 -p "   Normalize GRUB to /boot/grub now? [Y/n]: " grub_choice
+    read -t 30 -p "   Confirm normalize GRUB and DELETE /efi/grub [type YES]: " grub_choice
     local read_status=$?
 
     if [ $read_status -ne 0 ]; then
         echo ""
-        grub_choice="Y"
-    fi
-
-    grub_choice=${grub_choice:-Y}
-    if [[ "$grub_choice" =~ ^[nN]$ ]]; then
-        log "Keeping current GRUB layout under /efi/grub."
+        log "No explicit confirmation received. Keeping current GRUB layout under /efi/grub."
         return 0
     fi
 
-    local backup_dir="/efi/grub.bak.archsetup.$(date +%s)"
+    if [[ "$grub_choice" != "YES" && "$grub_choice" != "yes" ]]; then
+        log "Keeping current GRUB layout under /efi/grub."
+        return 0
+    fi
 
     section "Preflight" "Normalize GRUB Layout"
     log "Reinstalling GRUB with standard /boot/grub layout..."
@@ -192,9 +190,9 @@ maybe_normalize_grub_layout() {
     exe grub-mkconfig -o /boot/grub/grub.cfg || exit 1
 
     if [ -d /efi/grub ]; then
-        log "Backing up legacy /efi/grub to $backup_dir ..."
-        exe mv /efi/grub "$backup_dir" || exit 1
-        success "Legacy /efi/grub moved to $backup_dir"
+        log "Deleting legacy /efi/grub ..."
+        exe rm -rf /efi/grub || exit 1
+        success "Legacy /efi/grub deleted."
     fi
 
     success "GRUB layout normalized to /boot/grub."
