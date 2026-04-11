@@ -9,6 +9,7 @@ code                                     # Visual Studio Code
 neovim                                   # Terminal editor
 lazyvim                                  # Neovim starter config
 docker                                   # Container engine
+ctop                                     # Top-like interface for container metrics 
 yazi                                     # Terminal file manager
 nodejs                                   # Node.js runtime
 npm                                      # Node.js package manager
