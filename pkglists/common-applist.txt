@@ -91,6 +91,7 @@ AUR:clash-party-bin                      # Clash GUI client
 # Tools
 AUR:snipaste                             # Screenshot and pinning tool
 AUR:shorin-contrib-git                   # Shorin helper tools
+AUR:cockpit-tools-bin                    # AI IDE Account Management Tool
 
 # --- Flatpak ---
 
