@@ -548,7 +548,6 @@ sudo -u "$TARGET_USER" bash <<EOF
         "clipboard-indicator@tudmotu.com"
         "color-picker@tuberry"
         "desktop-cube@schneegans.github.com"
-        "ding@rastersoft.com"
         "fuzzy-application-search@mkhl.codeberg.page"
         "lockkeys@vaina.lt"
         "lunarcal@ailin.nemui"
