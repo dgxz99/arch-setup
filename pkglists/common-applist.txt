@@ -5,7 +5,6 @@ localsend                                # Cross-device file transfer
 onedrive-abraunegg                       # OneDrive client
 
 # Development & Terminal
-code                                     # Visual Studio Code
 neovim                                   # Terminal editor
 lazyvim                                  # Neovim starter config
 docker                                   # Container engine
@@ -64,11 +63,13 @@ AUR:wechat-bin                           # WeChat
 AUR:wemeet-bin                           # Tencent Meeting
 
 # Development
+AUR:visual-studio-code-bin               # Visual Studio Code
 AUR:typora                               # Markdown editor
-AUR:apifox-bin                           # API debugging tool
+AUR:apifox-appimage                      # API debugging tool
 AUR:intellij-idea-ultimate-edition       # JetBrains IntelliJ IDEA
 AUR:pycharm                              # JetBrains PyCharm
-AUR:webstorm                             # JetBrains WebStorm
+AUR:webstorm                             # JetBrains WebStorm. Note: For ease of use, please install webstorm-jre together.
+AUR:webstorm-jre                         # JBR (JetBrains Runtime) for WebStorm - a patched JRE
 AUR:liberica-jdk-8-full-bin              # Liberica JDK 8
 AUR:liberica-jdk-21-full-bin             # Liberica JDK 21
 AUR:liberica-jdk-25-full-bin             # Liberica JDK 25
@@ -78,6 +79,8 @@ AUR:liberica-jdk-25-full-bin             # Liberica JDK 25
 AUR:wps-office-cn                        # WPS Office
 AUR:wps-office-mui-zh-cn                 # WPS Chinese language pack
 AUR:ttf-wps-fonts                        # WPS fonts
+
+# Media
 AUR:splayer-bin                          # SPlayer media player
 
 # Gaming & Performance
@@ -86,7 +89,7 @@ AUR:lsfg-vk-bin                          # LSFG Vulkan tool
 AUR:mangojuice-bin                       # MangoHud GUI
 
 # Network
-AUR:clash-party-bin                      # Clash GUI client
+AUR:mihomo-party-bin                     # Clash GUI client
 
 # Tools
 AUR:snipaste                             # Screenshot and pinning tool
