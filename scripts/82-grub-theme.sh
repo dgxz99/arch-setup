@@ -86,6 +86,23 @@ manage_kernel_param() {
     exe sed -i "s,^GRUB_CMDLINE_LINUX_DEFAULT=.*,GRUB_CMDLINE_LINUX_DEFAULT=\"$params\"," "$conf_file"
 }
 
+set_grub_config_value() {
+    local key="$1"
+    local value="$2"
+    local conf_file="/etc/default/grub"
+    local escaped_value
+
+    escaped_value=$(printf '%s\n' "$value" | sed 's,[\/&],\\&,g')
+
+    if grep -q -E "^#\s*$key=" "$conf_file"; then
+        exe sed -i -E "s,^#\s*$key=.*,$key=\"$escaped_value\"," "$conf_file"
+    elif grep -q -E "^$key=" "$conf_file"; then
+        exe sed -i -E "s,^$key=.*,$key=\"$escaped_value\"," "$conf_file"
+    else
+        echo "$key=\"$escaped_value\"" >> "$conf_file"
+    fi
+}
+
 # cleanup_grub_theme - 清理旧的 GRUB 主题残留
 cleanup_grub_theme() {
     local minegrub_found=false
@@ -349,6 +366,8 @@ else
         if ! grep -q "^GRUB_GFXMODE=" "$GRUB_CONF"; then
             echo 'GRUB_GFXMODE=auto' >> "$GRUB_CONF"
         fi
+
+        set_grub_config_value "GRUB_DISABLE_SUBMENU" "true"
         success "Configured GRUB to use theme: $THEME_NAME"
     else
         error "$GRUB_CONF not found."
