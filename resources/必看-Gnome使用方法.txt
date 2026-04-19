@@ -31,12 +31,19 @@ Gradia 截图编辑             : Shift + Super + S
 关闭窗口                    : Super + Q
 最大化切换                  : Super + F
 全屏切换                    : Alt + Super + F
+显示桌面                    : Super + D
 
 [工作区]
 切换到左侧工作区            : Shift + Super + Q
 切换到右侧工作区            : Shift + Super + E
 窗口移到左侧工作区          : Ctrl + Super + Q
 窗口移到右侧工作区          : Ctrl + Super + E
+
+[应用切换]
+切换应用                    : Super + Tab / Alt + Tab
+向后切换应用                : Shift + Alt + Tab
+切换同组窗口                : Alt + `
+向后切换同组窗口            : Shift + Alt + `
 
 [GNOME 自带截图]
 截图                        : Shift + Ctrl + Super + A
@@ -45,6 +52,7 @@ Gradia 截图编辑             : Shift + Super + S
 
 [界面功能]
 应用列表                    : Super + G
+应用视图                    : Super + Z
 快速设置                    : Ctrl + Super + S
 放大镜                      : Alt + Super + 0
 

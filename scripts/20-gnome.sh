@@ -263,6 +263,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     
     # 基础窗口控制
     gsettings set \$SCHEMA close "['<Super>q']"
+    gsettings set \$SCHEMA show-desktop "['<Super>d']"
     gsettings set \$SCHEMA toggle-fullscreen "['<Alt><Super>f']"
     gsettings set \$SCHEMA toggle-maximized "['<Super>f']"
     
@@ -278,7 +279,7 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set \$SCHEMA move-to-workspace-right "['<Control><Super>e']"
     
     # 切换应用/窗口 
-    gsettings set \$SCHEMA switch-applications "['<Alt>Tab']"
+    gsettings set \$SCHEMA switch-applications "['<Super>Tab', '<Alt>Tab']"
     gsettings set \$SCHEMA switch-applications-backward "['<Shift><Alt>Tab']"
     gsettings set \$SCHEMA switch-group "['<Alt>grave']"
     gsettings set \$SCHEMA switch-group-backward "['<Shift><Alt>grave']"
@@ -298,7 +299,8 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set \$SCHEMA show-screenshot-ui "['<Alt><Super>a']"
     
     # 界面视图
-    gsettings set \$SCHEMA toggle-application-view "['<Super>g']"
+    gsettings set \$SCHEMA toggle-overview "['<Super>g']"
+    gsettings set \$SCHEMA toggle-application-view "['<Super>z']"
     gsettings set \$SCHEMA toggle-quick-settings "['<Control><Super>s']"
     gsettings set \$SCHEMA toggle-message-tray "[]"
 
@@ -427,6 +429,14 @@ sudo -u "$TARGET_USER" bash <<EOF
     gsettings set org.gnome.desktop.wm.preferences mouse-button-modifier 'disabled'
     gsettings set org.gnome.desktop.wm.preferences resize-with-right-button true
     gsettings set org.gnome.desktop.wm.preferences focus-mode 'click'
+
+    # Nautilus 设置
+    gsettings set org.gtk.gtk4.Settings.FileChooser sort-directories-first true
+    gsettings set org.gtk.Settings.FileChooser sort-directories-first true
+    gsettings set org.gnome.nautilus.preferences show-create-link true
+    gsettings set org.gnome.nautilus.preferences show-delete-permanently true
+    gsettings set org.gnome.nautilus.icon-view default-zoom-level 'small'
+    gsettings set org.gnome.nautilus.list-view default-zoom-level 'medium'
 EOF
 
 #=================================================
