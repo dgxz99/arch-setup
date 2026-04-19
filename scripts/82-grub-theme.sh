@@ -128,9 +128,10 @@ cleanup_grub_theme() {
     fi
 }
 
+# patch_grub_linux_titles - 优化 GRUB 内核菜单标题
 patch_grub_linux_titles() {
     local grub_linux="/etc/grub.d/10_linux"
-    local grub_linux_bak="/etc/grub.d/10_linux.archsetup.bak"
+    local grub_linux_bak="/etc/grub.d/10_linux.bak"
 
     if [ ! -f "$grub_linux" ]; then
         warn "GRUB linux generator not found at $grub_linux"
@@ -160,6 +161,112 @@ patch_grub_linux_titles() {
 
     exe chmod 755 "$grub_linux" || return 1
     success "10_linux title patch applied."
+}
+
+# disable_uki_generator - 禁用 UKI 生成器
+disable_uki_generator() {
+    local uki_script="/etc/grub.d/15_uki"
+    local uki_backup="/etc/grub.d/15_uki.bak"
+
+    if [ ! -e "$uki_script" ]; then
+        log "15_uki not present. Skipping UKI generator handling."
+        return 0
+    fi
+
+    if [ ! -f "$uki_script" ]; then
+        warn "$uki_script exists but is not a regular file. Skipping."
+        return 0
+    fi
+
+    if [ ! -f "$uki_backup" ]; then
+        log "Backing up 15_uki to $uki_backup ..."
+        exe cp "$uki_script" "$uki_backup" || return 1
+        success "Original 15_uki backed up."
+    fi
+
+    if [ ! -x "$uki_script" ]; then
+        log "15_uki already disabled."
+        return 0
+    fi
+
+    log "Disabling executable bit on 15_uki to avoid duplicate UKI entries..."
+    exe chmod -x "$uki_script" || return 1
+    success "15_uki disabled."
+}
+
+# restore_grub_script_from_backup - 从备份恢复 GRUB 脚本
+restore_grub_script_from_backup() {
+    local script_path="$1"
+    local backup_path="$2"
+    local label="$3"
+
+    if [ ! -e "$script_path" ]; then
+        log "$label not present. Skipping."
+        return 1
+    fi
+
+    if [ ! -f "$script_path" ]; then
+        warn "$script_path exists but is not a regular file. Skipping."
+        return 1
+    fi
+
+    if [ ! -f "$backup_path" ]; then
+        log "Backing up $label to $backup_path ..."
+        exe cp "$script_path" "$backup_path" || return 2
+        success "Original $label backed up."
+    fi
+
+    log "Restoring clean $label from backup before patching..."
+    exe cp "$backup_path" "$script_path" || return 2
+    return 0
+}
+
+# patch_grub_uefi_entry - 优化 UEFI 固件设置菜单项
+patch_grub_uefi_entry() {
+    local uefi_script="/etc/grub.d/30_uefi-firmware"
+    local uefi_backup="/etc/grub.d/30_uefi-firmware.bak"
+
+    restore_grub_script_from_backup "$uefi_script" "$uefi_backup" "30_uefi-firmware"
+    case $? in
+        1) return 0 ;;
+        2) return 1 ;;
+    esac
+
+    log "Patching 30_uefi-firmware classes..."
+    if ! perl -0pi -e '
+        s/(menuentry\s+['\''"][^'\''"]*UEFI Firmware Settings[^'\''"]*['\''"])(\s+)(\$menuentry_id_option\b[^{}]*)(\s*\{)/$1 --class driver --class efi$2$3$4/g;
+        s/(menuentry\s+['\''"][^'\''"]*UEFI Firmware Settings[^'\''"]*['\''"])(\s*)(\{)/$1 --class driver --class efi $3/g;
+    ' "$uefi_script"; then
+        error "Failed to patch $uefi_script"
+        return 1
+    fi
+
+    exe chmod 755 "$uefi_script" || return 1
+    success "30_uefi-firmware class patch applied."
+}
+
+# patch_grub_snapshots_entry - 优化快照菜单项
+patch_grub_snapshots_entry() {
+    local snapshots_script="/etc/grub.d/41_snapshots-btrfs"
+    local snapshots_backup="/etc/grub.d/41_snapshots-btrfs.bak"
+
+    restore_grub_script_from_backup "$snapshots_script" "$snapshots_backup" "41_snapshots-btrfs"
+    case $? in
+        1) return 0 ;;
+        2) return 1 ;;
+    esac
+
+    log "Patching 41_snapshots-btrfs classes..."
+    if ! perl -0pi -e '
+        s/(submenu\s+['\''"][^'\''"]*snapshots[^'\''"]*['\''"])(\s+)(\$menuentry_id_option\b[^{}]*)(\s*\{)/$1 --class recovery --class arch$2$3$4/ig;
+        s/(submenu\s+['\''"][^'\''"]*snapshots[^'\''"]*['\''"])(\s*)(\{)/$1 --class recovery --class arch $3/ig;
+    ' "$snapshots_script"; then
+        error "Failed to patch $snapshots_script"
+        return 1
+    fi
+
+    exe chmod 755 "$snapshots_script" || return 1
+    success "41_snapshots-btrfs class patch applied."
 }
 
 write_power_entries() {
@@ -375,8 +482,21 @@ else
     fi
 fi
 
-section "Step 4.5/6" "Patch Kernel Menu Titles"
+log "Patch Kernel Menu Titles"
 patch_grub_linux_titles || exit 1
+success "Kernel menu titles patched successfully."
+
+log "Disable Duplicate UKI Entries"
+disable_uki_generator || exit 1
+success "UKI generator disabled to prevent duplicate entries."
+
+log "Patch UEFI Firmware Entry"
+patch_grub_uefi_entry || exit 1
+success "UEFI firmware menu entry patched successfully."
+
+log "Patch Snapshots Entry"
+patch_grub_snapshots_entry || exit 1
+success "GRUB scripts patched successfully."
 
 # ------------------------------------------------------------------------------
 # 5. Add Shutdown/Reboot Menu Entries
