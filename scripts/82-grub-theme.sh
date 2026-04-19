@@ -111,6 +111,40 @@ cleanup_grub_theme() {
     fi
 }
 
+patch_grub_linux_titles() {
+    local grub_linux="/etc/grub.d/10_linux"
+    local grub_linux_bak="/etc/grub.d/10_linux.archsetup.bak"
+
+    if [ ! -f "$grub_linux" ]; then
+        warn "GRUB linux generator not found at $grub_linux"
+        return 0
+    fi
+
+    if [ ! -f "$grub_linux_bak" ]; then
+        log "Backing up original 10_linux to $grub_linux_bak ..."
+        exe cp "$grub_linux" "$grub_linux_bak" || return 1
+        success "Original 10_linux backed up."
+    fi
+
+    log "Restoring clean 10_linux from backup before patching..."
+    exe cp "$grub_linux_bak" "$grub_linux" || return 1
+
+    log "Patching 10_linux titles to include kernel names..."
+    if ! perl -0pi -e '
+        s/title="\$\(gettext_printf "%s, with Linux %s \(booster initramfs\)" "\$\{os\}" "\$\{version\}"\)"/title="\$(gettext_printf "%s (%s, booster initramfs)" "\${os}" "\${version}")"/g;
+        s/title="\$\(gettext_printf "%s, with Linux %s \(fallback initramfs\)" "\$\{os\}" "\$\{version\}"\)"/title="\$(gettext_printf "%s (%s, fallback initramfs)" "\${os}" "\${version}")"/g;
+        s/title="\$\(gettext_printf "%s, with Linux %s \(recovery mode\)" "\$\{os\}" "\$\{version\}"\)"/title="\$(gettext_printf "%s (%s, recovery mode)" "\${os}" "\${version}")"/g;
+        s/title="\$\(gettext_printf "%s, with Linux %s" "\$\{os\}" "\$\{version\}"\)"/title="\$(gettext_printf "%s (%s)" "\${os}" "\${version}")"/g;
+        s/echo "menuentry '\''\$\(echo "\$os" \| grub_quote\)'\'' \$\{CLASS\} \\\$menuentry_id_option '\''gnulinux-simple-\$boot_device_id'\'' \{" \| sed "s\/\^\/\$submenu_indentation\/"/simple_title="\$(gettext_printf "%s (%s)" "\${os}" "\${version}")"\n      echo "menuentry '\''\$(echo "\$simple_title" | grub_quote)'\'' \${CLASS} \\\$menuentry_id_option '\''gnulinux-simple-\$boot_device_id'\'' \{" | sed "s\/^\/\$submenu_indentation\/"/g;
+    ' "$grub_linux"; then
+        error "Failed to patch $grub_linux"
+        return 1
+    fi
+
+    exe chmod 755 "$grub_linux" || return 1
+    success "10_linux title patch applied."
+}
+
 write_power_entries() {
     local custom_file="/etc/grub.d/99_custom"
 
@@ -118,15 +152,15 @@ write_power_entries() {
         exe rm -f "$custom_file"
     fi
 
-    cat <<'EOF' > "$custom_file"
+cat <<'EOF' > "$custom_file"
 #!/bin/sh
 exec tail -n +3 $0
 
-menuentry "Reboot" {
+menuentry "Reboot" --class restart {
     reboot
 }
 
-menuentry "Shutdown" {
+menuentry "Shutdown" --class shutdown {
     halt
 }
 EOF
@@ -321,6 +355,9 @@ else
         exit 1
     fi
 fi
+
+section "Step 4.5/6" "Patch Kernel Menu Titles"
+patch_grub_linux_titles || exit 1
 
 # ------------------------------------------------------------------------------
 # 5. Add Shutdown/Reboot Menu Entries
