@@ -144,6 +144,8 @@ patch_grub_linux_titles() {
         success "Original 10_linux backed up."
     fi
 
+    exe chmod -x "$grub_linux_bak" || return 1
+
     log "Restoring clean 10_linux from backup before patching..."
     exe cp "$grub_linux_bak" "$grub_linux" || return 1
 
@@ -184,6 +186,8 @@ disable_uki_generator() {
         success "Original 15_uki backed up."
     fi
 
+    exe chmod -x "$uki_backup" || return 1
+
     if [ ! -x "$uki_script" ]; then
         log "15_uki already disabled."
         return 0
@@ -216,6 +220,8 @@ restore_grub_script_from_backup() {
         success "Original $label backed up."
     fi
 
+    exe chmod -x "$backup_path" || return 2
+
     log "Restoring clean $label from backup before patching..."
     exe cp "$backup_path" "$script_path" || return 2
     return 0
@@ -234,8 +240,7 @@ patch_grub_uefi_entry() {
 
     log "Patching 30_uefi-firmware classes..."
     if ! perl -0pi -e '
-        s/(menuentry\s+['\''"][^'\''"]*UEFI Firmware Settings[^'\''"]*['\''"])(\s+)(\$menuentry_id_option\b[^{}]*)(\s*\{)/$1 --class driver --class efi$2$3$4/g;
-        s/(menuentry\s+['\''"][^'\''"]*UEFI Firmware Settings[^'\''"]*['\''"])(\s*)(\{)/$1 --class driver --class efi $3/g;
+        s/menuentry '\''\$LABEL'\''\s+\\\$menuentry_id_option '\''uefi-firmware'\'' \{/menuentry '\''\$LABEL'\'' --class driver --class efi \\\$menuentry_id_option '\''uefi-firmware'\'' {/g;
     ' "$uefi_script"; then
         error "Failed to patch $uefi_script"
         return 1
@@ -258,8 +263,7 @@ patch_grub_snapshots_entry() {
 
     log "Patching 41_snapshots-btrfs classes..."
     if ! perl -0pi -e '
-        s/(submenu\s+['\''"][^'\''"]*snapshots[^'\''"]*['\''"])(\s+)(\$menuentry_id_option\b[^{}]*)(\s*\{)/$1 --class recovery --class arch$2$3$4/ig;
-        s/(submenu\s+['\''"][^'\''"]*snapshots[^'\''"]*['\''"])(\s*)(\{)/$1 --class recovery --class arch $3/ig;
+        s/submenu '\''\$\{submenuname\}'\'' \$\{protection_authorized_users\}\$\{unrestricted_access_submenu\}\{/submenu '\''\$\{submenuname\}'\'' --class recovery --class snapshots \${protection_authorized_users}\${unrestricted_access_submenu}{/g;
     ' "$snapshots_script"; then
         error "Failed to patch $snapshots_script"
         return 1
