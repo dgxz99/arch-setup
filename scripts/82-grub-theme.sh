@@ -165,39 +165,6 @@ patch_grub_linux_titles() {
     success "10_linux title patch applied."
 }
 
-# disable_uki_generator - 禁用 UKI 生成器
-disable_uki_generator() {
-    local uki_script="/etc/grub.d/15_uki"
-    local uki_backup="/etc/grub.d/15_uki.bak"
-
-    if [ ! -e "$uki_script" ]; then
-        log "15_uki not present. Skipping UKI generator handling."
-        return 0
-    fi
-
-    if [ ! -f "$uki_script" ]; then
-        warn "$uki_script exists but is not a regular file. Skipping."
-        return 0
-    fi
-
-    if [ ! -f "$uki_backup" ]; then
-        log "Backing up 15_uki to $uki_backup ..."
-        exe cp "$uki_script" "$uki_backup" || return 1
-        success "Original 15_uki backed up."
-    fi
-
-    exe chmod -x "$uki_backup" || return 1
-
-    if [ ! -x "$uki_script" ]; then
-        log "15_uki already disabled."
-        return 0
-    fi
-
-    log "Disabling executable bit on 15_uki to avoid duplicate UKI entries..."
-    exe chmod -x "$uki_script" || return 1
-    success "15_uki disabled."
-}
-
 # restore_grub_script_from_backup - 从备份恢复 GRUB 脚本
 restore_grub_script_from_backup() {
     local script_path="$1"
@@ -489,10 +456,6 @@ fi
 log "Patch Kernel Menu Titles"
 patch_grub_linux_titles || exit 1
 success "Kernel menu titles patched successfully."
-
-log "Disable Duplicate UKI Entries"
-disable_uki_generator || exit 1
-success "UKI generator disabled to prevent duplicate entries."
 
 log "Patch UEFI Firmware Entry"
 patch_grub_uefi_entry || exit 1

@@ -50,7 +50,7 @@ create_checkpoint() {
     fi
 
     # 1. Root 分区快照
-    # 检查 root 配置是否存在 (02-btrfs-init.sh 创建)
+    # 检查 root 配置是否存在 (02-init-boot-btrfs.sh 创建)
     if snapper -c root get-config &>/dev/null; then
         # 检查是否已存在同名快照 (避免重复创建)
         # 如果用户重复运行安装脚本，不会创建多个同名快照

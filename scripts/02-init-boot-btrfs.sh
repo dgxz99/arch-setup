@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 02-btrfs-init.sh - Pre-install Snapshot Safety Net (Root & Home)
+# 02-init-boot-btrfs.sh - Pre-install Snapshot Safety Net (Root & Home)
 # ==============================================================================
 # 这是安装流程的第二个模块，负责在系统配置前创建 Btrfs 快照作为安全网
 
@@ -29,6 +29,198 @@ log "Starting Phase 2: System Snapshot Initialization..."
 
 # 显示阶段标题
 section "System Snapshot Initialization"
+
+# ------------------------------------------------------------------------------
+# 启动模式修正工具函数
+# ------------------------------------------------------------------------------
+# 为了保证 Btrfs 快照回滚时内核、initramfs 与 root 子卷尽量保持一致
+# 这里统一将 UKI 路线切回传统的 /boot/vmlinuz + /boot/initramfs-*.img
+
+# 处理配置文件的备份和恢复，确保修改前有干净的备份可用
+restore_config_from_backup() {
+    local file_path="$1"
+    local backup_path="$2"
+    local label="$3"
+
+    if [ ! -f "$file_path" ]; then
+        warn "$label not found at $file_path"
+        return 1
+    fi
+
+    if [ ! -f "$backup_path" ]; then
+        log "Backing up $label to $backup_path ..."
+        exe cp "$file_path" "$backup_path" || return 2
+        success "Original $label backed up."
+    fi
+
+    log "Restoring clean $label from backup before patching..."
+    exe cp "$backup_path" "$file_path" || return 2
+    return 0
+}
+
+# 将 mkinitcpio preset 从 UKI 输出切换回传统 initramfs 输出
+convert_mkinitcpio_preset_to_initramfs() {
+    local preset_path="$1"
+    local preset_name
+    local preset_backup
+
+    preset_name="$(basename "$preset_path" .preset)"
+    preset_backup="${preset_path}.bak"
+
+    restore_config_from_backup "$preset_path" "$preset_backup" "${preset_name}.preset"
+    case $? in
+        1) return 0 ;;
+        2) return 1 ;;
+    esac
+
+    log "Switching ${preset_name}.preset from UKI to initramfs images..."
+    exe sed -i -E \
+        -e "s|^PRESETS=.*|PRESETS=('default')|" \
+        -e 's|^[[:space:]]*#?[[:space:]]*(default_uki=)|#\1|' \
+        -e 's|^[[:space:]]*#?[[:space:]]*(fallback_uki=)|#\1|' \
+        -e 's|^[[:space:]]*#?[[:space:]]*(fallback_config=)|#\1|' \
+        -e 's|^[[:space:]]*#?[[:space:]]*(fallback_image=)|#\1|' \
+        -e 's|^[[:space:]]*#?[[:space:]]*(fallback_options=)|#\1|' \
+        "$preset_path" || return 1
+
+    if grep -qE '^[[:space:]]*#?[[:space:]]*default_image=' "$preset_path"; then
+        exe sed -i -E "s|^[[:space:]]*#?[[:space:]]*default_image=.*|default_image=\"/boot/initramfs-${preset_name}.img\"|" "$preset_path" || return 1
+    else
+        echo "default_image=\"/boot/initramfs-${preset_name}.img\"" >> "$preset_path"
+    fi
+
+    exe sed -i -E 's|^[[:space:]]*#?[[:space:]]*(default_options=)|#\1|' "$preset_path" || return 1
+
+    success "${preset_name}.preset switched to initramfs outputs."
+}
+
+# 禁用 GRUB 的 UKI 生成器，避免重复的 UKI 条目干扰快照回滚
+disable_uki_generator() {
+    local uki_script="/etc/grub.d/15_uki"
+    local uki_backup="/etc/grub.d/15_uki.bak"
+
+    if [ ! -e "$uki_script" ]; then
+        log "15_uki not present. Skipping UKI generator handling."
+        return 0
+    fi
+
+    if [ ! -f "$uki_script" ]; then
+        warn "$uki_script exists but is not a regular file. Skipping."
+        return 0
+    fi
+
+    if [ ! -f "$uki_backup" ]; then
+        log "Backing up 15_uki to $uki_backup ..."
+        exe cp "$uki_script" "$uki_backup" || return 1
+        success "Original 15_uki backed up."
+    fi
+
+    exe chmod -x "$uki_backup" || return 1
+
+    if [ -x "$uki_script" ]; then
+        log "Disabling executable bit on 15_uki to avoid duplicate UKI entries..."
+        exe chmod -x "$uki_script" || return 1
+        success "15_uki disabled."
+    else
+        log "15_uki already disabled."
+    fi
+}
+
+# 禁用 kernel-install 的 UKI 模式，确保内核安装后不会自动生成 UKI 条目
+disable_kernel_install_uki_mode() {
+    local install_conf="/etc/kernel/install.conf"
+    local install_backup="/etc/kernel/install.conf.bak"
+
+    if [ ! -f "$install_conf" ]; then
+        log "kernel-install config not present. Skipping."
+        return 0
+    fi
+
+    restore_config_from_backup "$install_conf" "$install_backup" "kernel-install config"
+    case $? in
+        1) return 0 ;;
+        2) return 1 ;;
+    esac
+
+    log "Disabling kernel-install UKI mode..."
+    exe sed -i -E \
+        -e 's|^[[:space:]]*(layout=uki)|#\1|' \
+        -e 's|^[[:space:]]*(uki_generator=.*)|#\1|' \
+        "$install_conf" || return 1
+
+    success "kernel-install UKI mode disabled."
+}
+
+# 移除旧的 UKI 包
+remove_uki_bundles() {
+    local uki_dir="/efi/EFI/Linux"
+    local found_any=false
+
+    if [ ! -d "$uki_dir" ]; then
+        log "UKI directory $uki_dir not present. Skipping cleanup."
+        return 0
+    fi
+
+    while IFS= read -r uki_file; do
+        [ -z "$uki_file" ] && continue
+        found_any=true
+        log "Removing obsolete UKI bundle: $uki_file"
+        exe rm -f "$uki_file" || return 1
+    done < <(find "$uki_dir" -maxdepth 1 -type f -name '*.efi' | sort)
+
+    if [ "$found_any" = true ]; then
+        success "Removed UKI bundles from $uki_dir."
+    else
+        log "No UKI bundles found under $uki_dir."
+    fi
+}
+
+# 确保引导模式与快照兼容
+ensure_snapshot_compatible_boot_mode() {
+    local switched_any=false
+    local initramfs_present=false
+
+    section "Boot Mode Preparation" "Switching UKI systems to snapshot-compatible initramfs boot"
+
+    if [ ! -d "/etc/mkinitcpio.d" ]; then
+        warn "/etc/mkinitcpio.d not found. Skipping boot mode conversion."
+        return 0
+    fi
+
+    mapfile -t PRESET_FILES < <(find /etc/mkinitcpio.d -maxdepth 1 -type f -name '*.preset' | sort)
+    if [ ${#PRESET_FILES[@]} -eq 0 ]; then
+        warn "No mkinitcpio preset files found. Skipping boot mode conversion."
+        return 0
+    fi
+
+    for preset_path in "${PRESET_FILES[@]}"; do
+        if grep -qE '^[[:space:]]*[[:alnum:]_]+_uki=' "$preset_path"; then
+            convert_mkinitcpio_preset_to_initramfs "$preset_path" || exit 1
+            switched_any=true
+        fi
+    done
+
+    if [ -f "/etc/kernel/install.conf" ] && grep -qE '^[[:space:]]*(layout=uki|uki_generator=)' /etc/kernel/install.conf; then
+        disable_kernel_install_uki_mode || exit 1
+        switched_any=true
+    fi
+
+    if compgen -G "/boot/initramfs-*.img" > /dev/null; then
+        initramfs_present=true
+    fi
+
+    if [ "$switched_any" = true ] || [ "$initramfs_present" = false ]; then
+        log "Regenerating initramfs images for traditional boot flow..."
+        exe mkinitcpio -P || exit 1
+        success "Initramfs images regenerated."
+    else
+        log "Traditional initramfs images already present. Skipping mkinitcpio regeneration."
+    fi
+
+    disable_uki_generator || exit 1
+    remove_uki_bundles || exit 1
+    success "Snapshot-compatible boot mode is ready."
+}
 
 # ------------------------------------------------------------------------------
 # 0. Check Root Filesystem 检查根文件系统是否为 Btrfs
@@ -111,7 +303,12 @@ if findmnt -n -o FSTYPE /home | grep -q "btrfs"; then
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Create Initial Pristine Snapshot 创建初始快照
+# 3. Prepare Snapshot-Compatible Boot Mode
+# ------------------------------------------------------------------------------
+ensure_snapshot_compatible_boot_mode
+
+# ------------------------------------------------------------------------------
+# 4. Create Initial Pristine Snapshot 创建初始快照
 # ------------------------------------------------------------------------------
 section "Safety Net" "Creating Pristine Initial Snapshots"
 
@@ -136,7 +333,7 @@ if snapper list-configs | grep -q "home "; then
 fi
 
 # ------------------------------------------------------------------------------
-# 4. Btrfs Assistants & GRUB Snapshot Integration
+# 5. Btrfs Assistants & GRUB Snapshot Integration
 # ------------------------------------------------------------------------------
 section "Btrfs Snapshot Integration"
 

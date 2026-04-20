@@ -220,7 +220,7 @@ sys_dashboard           # 显示仪表盘
 # 定义安装流程的核心模块
 MANDATORY_MODULES=(
     "01-preflight.sh"
-    "02-btrfs-init.sh"
+    "02-init-boot-btrfs.sh"
     "03-base.sh"
     "04-user.sh"
     "05-gpu-driver.sh"
