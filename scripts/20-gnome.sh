@@ -491,15 +491,11 @@ EXTENSION_LIST=(
     "arch-update@RaphaelRochet"                                 # Arch 更新指示器
     "aztaskbar@aztaskbar.gitlab.com"                            # 任务栏
     "blur-my-shell@aunetx"                                      # Shell 模糊效果
-    "caffeine@patapon.info"                                     # 阻止休眠
     "clipboard-indicator@tudmotu.com"                           # 剪贴板管理
-    "color-picker@tuberry"                                      # 取色器
     "desktop-cube@schneegans.github.com"                        # 桌面立方体效果
-    "ding@rastersoft.com"                                       # Desktop Icons NG
     "fuzzy-application-search@mkhl.codeberg.page"               # 模糊搜索
     "lockkeys@vaina.lt"                                         # 键盘锁指示器
     "lunarcal@ailin.nemui"                                      # Lunar Calendar 农历
-    "tilingshell@ferrarodomenico.com"                           # 平铺窗口管理
     "top-bar-organizer@julian.gse.jsts.xyz"                     # Top Bar Organizer
     "user-theme@gnome-shell-extensions.gcampax.github.com"      # 用户主题
     "kimpanel@kde.org"                                          # Fcitx5 输入法面板
@@ -507,7 +503,6 @@ EXTENSION_LIST=(
     "appindicatorsupport@rgcjonas.gmail.com"                    # 系统托盘支持
     "CoverflowAltTab@palatis.blogspot.com"                      # 3D 覆盖流样式的 Alt-Tab 切换
     "drive-menu@gnome-shell-extensions.gcampax.github.com"      # 顶部面板U盘/移动硬盘弹出菜单
-    "dash-to-dock@micxgx.gmail.com"                             # Dash to Dock
     "app-hider@lynith.dev"                                      # 隐藏菜单中的App
     "system-monitor@gnome-shell-extensions.gcampax.github.com"  # 系统监视器，显示 CPU/RAM/网络等状态
     "notification-configurator@exposedcat"                      # 通知配置器，允许自定义通知行为和外观
@@ -551,25 +546,22 @@ sudo -u "$TARGET_USER" bash <<EOF
 
     # 启用需要的扩展
     declare -a ext_array=(
-        "user-theme@gnome-shell-extensions.gcampax.github.com"
         "arch-update@RaphaelRochet"
+        "aztaskbar@aztaskbar.gitlab.com"
         "blur-my-shell@aunetx"
-        "caffeine@patapon.info"
         "clipboard-indicator@tudmotu.com"
-        "color-picker@tuberry"
         "desktop-cube@schneegans.github.com"
         "fuzzy-application-search@mkhl.codeberg.page"
         "lockkeys@vaina.lt"
         "lunarcal@ailin.nemui"
-        "tilingshell@ferrarodomenico.com"
+        "top-bar-organizer@julian.gse.jsts.xyz"
+        "user-theme@gnome-shell-extensions.gcampax.github.com" 
         "kimpanel@kde.org"
         "rounded-window-corners@fxgn"
         "appindicatorsupport@rgcjonas.gmail.com"
         "CoverflowAltTab@palatis.blogspot.com"
         "drive-menu@gnome-shell-extensions.gcampax.github.com"
-        "dash-to-dock@micxgx.gmail.com"
         "app-hider@lynith.dev"
-        "top-bar-organizer@julian.gse.jsts.xyz"
         "system-monitor@gnome-shell-extensions.gcampax.github.com"
         "notification-configurator@exposedcat"
     )
