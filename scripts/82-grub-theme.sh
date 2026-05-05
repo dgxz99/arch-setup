@@ -161,6 +161,14 @@ patch_grub_linux_titles() {
         return 1
     fi
 
+    log "Patching 10_linux kernel order to prefer zen, linux, then lts..."
+    if ! perl -0pi -e '
+        s|(if \[ "x\$GRUB_TOP_LEVEL" != x \]; then\n  reverse_sorted_list=\$\(grub_move_to_front "\$GRUB_TOP_LEVEL" \$\{reverse_sorted_list\}\)\nfi\n)|$1\n# Prefer interactive kernels first while keeping other kernels in GRUB order.\npreferred_kernel_order="/boot/vmlinuz-linux-zen /boot/vmlinuz-linux /boot/vmlinuz-linux-lts"\nordered_kernel_list=""\nfor preferred_kernel in $preferred_kernel_order; do\n  for kernel_entry in ${reverse_sorted_list}; do\n    if [ "x${kernel_entry}" = "x${preferred_kernel}" ]; then\n      ordered_kernel_list="${ordered_kernel_list} ${kernel_entry}"\n      break\n    fi\n  done\ndone\nfor kernel_entry in ${reverse_sorted_list}; do\n  case " ${ordered_kernel_list} " in\n    *" ${kernel_entry} "*) ;;\n    *) ordered_kernel_list="${ordered_kernel_list} ${kernel_entry}" ;;\n  esac\ndone\nreverse_sorted_list="${ordered_kernel_list}"\n|;
+    ' "$grub_linux"; then
+        error "Failed to patch kernel ordering in $grub_linux"
+        return 1
+    fi
+
     exe chmod 755 "$grub_linux" || return 1
     success "10_linux title patch applied."
 }
